@@ -1,43 +1,26 @@
 package com.pockyl.diegesis.mixin.client;
 
-import net.minecraft.client.Camera;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
-import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import com.pockyl.diegesis.impl.client.focus.FocusController;
+import com.pockyl.diegesis.impl.client.render.SceneRenderer;
 
 /**
- * The scene's field of view while the player works at a station (Fabric has no FOV event; one hook for both loaders), and no
- * first-person hand in the picture: the camera is somewhere else, and with a hidden body it stays undetached.
+ * Extracts Diegesis 3D scene geometry into the frame's {@code LevelRenderState} right after level extraction.
  */
 @Mixin(GameRenderer.class)
 abstract class GameRendererMixin {
-    @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
-    private void diegesis$focusFov(Camera camera, float partialTick, boolean useFovSetting, CallbackInfoReturnable<Double> cir) {
-        FocusController focus = FocusController.get();
-        if (useFovSetting && focus.isActive()) {
-            cir.setReturnValue(focus.fov(cir.getReturnValue()));
-        }
-    }
-
-    /** Nor the outline of the block the player looked at: it stayed while the HUD slid away. */
-    @Inject(method = "shouldRenderBlockOutline", at = @At("HEAD"), cancellable = true)
-    private void diegesis$noOutlineAtStation(CallbackInfoReturnable<Boolean> cir) {
-        if (FocusController.get().isActive()) {
-            cir.setReturnValue(false);
-        }
-    }
-
-    /** Once it has gone down ({@code ItemInHandRendererMixin}). */
-    @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
-    private void diegesis$noHandAtStation(Camera camera, float partialTick, Matrix4f projection, CallbackInfo ci) {
-        if (FocusController.get().isHandGone()) {
-            ci.cancel();
+    @Inject(method = "extract", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/gui/Gui;extractRenderState(Lnet/minecraft/client/DeltaTracker;ZZ)V"))
+    private void diegesis$extractScene(DeltaTracker tracker, boolean advance, CallbackInfo ci) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level != null && mc.gameRenderer.gameRenderState().shouldRenderLevel) {
+            SceneRenderer.extract();
         }
     }
 }

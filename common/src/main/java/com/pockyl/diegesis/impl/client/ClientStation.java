@@ -7,7 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -84,7 +84,7 @@ public final class ClientStation implements StationView, StationContext {
     private final SceneParticles particles = new SceneParticles();
     private final PourStreams pourStreams = new PourStreams();
     private final Map<String, com.pockyl.diegesis.impl.client.fx.StationLoop> loops = new HashMap<>();
-    private static final java.util.Set<ResourceLocation> WARNED_PARTICLES = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final java.util.Set<Identifier> WARNED_PARTICLES = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final Matrix4f toWorldMatrix = new Matrix4f();
     private float age;
     private boolean focused;
@@ -245,7 +245,7 @@ public final class ClientStation implements StationView, StationContext {
 
     @Override
     public void showCaption(Component text, float seconds) {
-        long now = net.minecraft.Util.getMillis();
+        long now = net.minecraft.util.Util.getMillis();
         if (text == null || !text.equals(caption)) {
             captionStart = now;
         }
@@ -255,12 +255,12 @@ public final class ClientStation implements StationView, StationContext {
 
     /** The line to show now, or null. */
     public Component caption() {
-        return caption != null && net.minecraft.Util.getMillis() < captionEnd ? caption : null;
+        return caption != null && net.minecraft.util.Util.getMillis() < captionEnd ? caption : null;
     }
 
     /** How solid the caption is now, 0 to 1: it fades in and out. */
     public float captionAlpha() {
-        long now = net.minecraft.Util.getMillis();
+        long now = net.minecraft.util.Util.getMillis();
         float in = (now - captionStart) / 200.0F;
         float out = captionEnd == Long.MAX_VALUE ? 1.0F : (captionEnd - now) / 300.0F;
         return Mth.clamp(Math.min(in, out), 0.0F, 1.0F);
@@ -304,7 +304,7 @@ public final class ClientStation implements StationView, StationContext {
     }
 
     @Override
-    public void spawnParticles(ResourceLocation particle, String node, int count, int color) {
+    public void spawnParticles(Identifier particle, String node, int count, int color) {
         ParticleStyle style = style(particle);
         if (style == null) {
             return;
@@ -319,14 +319,14 @@ public final class ClientStation implements StationView, StationContext {
     }
 
     @Override
-    public void spawnParticles(ResourceLocation particle, Vector3fc at, Vector3fc velocity, float spread, int count, int color) {
+    public void spawnParticles(Identifier particle, Vector3fc at, Vector3fc velocity, float spread, int count, int color) {
         ParticleStyle style = style(particle);
         if (style != null) {
             particles.spawn(style, at, velocity, spread, count, color);
         }
     }
 
-    private static ParticleStyle style(ResourceLocation particle) {
+    private static ParticleStyle style(Identifier particle) {
         ParticleStyle style = ClientRegistry.particle(particle);
         if (style == null && WARNED_PARTICLES.add(particle)) {
             DiegesisMod.LOGGER.warn("Unknown scene particle {}: register it with DiegesisClient.registerParticle", particle);
@@ -529,7 +529,7 @@ public final class ClientStation implements StationView, StationContext {
     }
 
     @Override
-    public void effect(ResourceLocation effect, String node, CompoundTag data) {
+    public void effect(Identifier effect, String node, CompoundTag data) {
         playEffect(effect, node == null || node.isEmpty() ? null : node, data);
     }
 
@@ -735,7 +735,7 @@ public final class ClientStation implements StationView, StationContext {
     }
 
     @Override
-    public void spawnInLiquid(ResourceLocation particle, String node, int count, int color, Vector3fc velocity) {
+    public void spawnInLiquid(Identifier particle, String node, int count, int color, Vector3fc velocity) {
         ParticleStyle style = style(particle);
         NodeInstance instance = scene == null || node == null ? null : scene.node(node);
         if (style != null && instance != null) {
@@ -744,7 +744,7 @@ public final class ClientStation implements StationView, StationContext {
     }
 
     @Override
-    public void spawnOnLiquid(ResourceLocation particle, String node, int count, int color, Vector3fc velocity) {
+    public void spawnOnLiquid(Identifier particle, String node, int count, int color, Vector3fc velocity) {
         ParticleStyle style = style(particle);
         NodeInstance instance = scene == null || node == null ? null : scene.node(node);
         TankBinding binding = instance == null ? null : instance.definition().tank().orElse(null);
@@ -754,7 +754,7 @@ public final class ClientStation implements StationView, StationContext {
     }
 
     @Override
-    public void spawnAtLiquidEdge(ResourceLocation particle, String node, int count, int color, float scale) {
+    public void spawnAtLiquidEdge(Identifier particle, String node, int count, int color, float scale) {
         ParticleStyle style = style(particle);
         NodeInstance instance = scene == null || node == null ? null : scene.node(node);
         TankBinding binding = instance == null ? null : instance.definition().tank().orElse(null);
@@ -856,7 +856,7 @@ public final class ClientStation implements StationView, StationContext {
         fire(() -> behavior.onEvent(this, event));
     }
 
-    void playEffect(ResourceLocation effect, String node, CompoundTag data) {
+    void playEffect(Identifier effect, String node, CompoundTag data) {
         ClientRegistry.effect(effect).ifPresent(handler -> fire(() -> handler.play(this, node, data)));
         fire(() -> behavior.onEffect(this, effect, node, data));
     }

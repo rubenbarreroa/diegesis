@@ -2,10 +2,9 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.pockyl.diegesis.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_25",
   "mixins": [],
   "client": [
-    "client.BlockFaceMixin",
     "client.CameraMixin",
     "client.ChatComponentMixin",
     "client.ClientPacketListenerMixin",
@@ -14,15 +13,12 @@
     "client.ItemInHandRendererMixin",
     "client.ItemRendererMixin",
     "client.KeyboardInputMixin",
-    "client.LevelRendererAccessor",
     "client.LevelRendererMixin",
     "client.MultiPlayerGameModeMixin",
     "client.ParticleEngineMixin",
     "client.RenderChunkRegionMixin",
-    "client.SingleQuadParticleMixin",
-    "client.SodiumOcclusionMixin",
-    "client.SodiumWorldSliceMixin",
-    "client.TextureSheetParticleGpuMixin"
+    "client.SceneFrameMixin",
+    "client.SingleQuadParticleMixin"
   ],
   "injectors": {
     "defaultRequire": 1

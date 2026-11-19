@@ -2,7 +2,7 @@ package com.pockyl.diegesis.impl.client.mesh;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.Direction;
@@ -110,26 +110,33 @@ public final class Mesh {
      */
     public List<BakedQuad> quads(TextureAtlasSprite sprite) {
         List<BakedQuad> quads = new ArrayList<>(faces());
+        BakedQuad.MaterialInfo material = new BakedQuad.MaterialInfo(
+                sprite,
+                net.minecraft.client.renderer.chunk.ChunkSectionLayer.CUTOUT,
+                net.minecraft.client.renderer.Sheets.cutoutItemSheet(),
+                net.minecraft.client.renderer.Sheets.cutoutItemGlintSheet(),
+                net.minecraft.client.renderer.Sheets.cutoutItemGlintSpecialSheet(),
+                -1,
+                null,
+                0);
         for (int face = 0; face < vertices.length; face += 4 * STRIDE) {
-            int[] data = new int[32];
+            Vector3f[] pos = new Vector3f[4];
+            long[] uvs = new long[4];
             float nx = 0.0F;
             float ny = 0.0F;
             float nz = 0.0F;
             for (int corner = 0; corner < 4; corner++) {
                 int i = face + corner * STRIDE;
-                int at = corner * 8;
-                data[at] = Float.floatToRawIntBits(vertices[i] / 16.0F + 0.5F);
-                data[at + 1] = Float.floatToRawIntBits(vertices[i + 1] / 16.0F);
-                data[at + 2] = Float.floatToRawIntBits(vertices[i + 2] / 16.0F + 0.5F);
-                data[at + 3] = -1;
-                data[at + 4] = Float.floatToRawIntBits(sprite.getU0() + vertices[i + 3] * (sprite.getU1() - sprite.getU0()));
-                data[at + 5] = Float.floatToRawIntBits(sprite.getV0() + vertices[i + 4] * (sprite.getV1() - sprite.getV0()));
-                data[at + 7] = packNormal(vertices[i + 5], vertices[i + 6], vertices[i + 7]);
+                pos[corner] = new Vector3f(vertices[i] / 16.0F + 0.5F, vertices[i + 1] / 16.0F, vertices[i + 2] / 16.0F + 0.5F);
+                float u = sprite.getU0() + vertices[i + 3] * (sprite.getU1() - sprite.getU0());
+                float v = sprite.getV0() + vertices[i + 4] * (sprite.getV1() - sprite.getV0());
+                uvs[corner] = net.minecraft.client.model.geom.builders.UVPair.pack(u, v);
                 nx += vertices[i + 5];
                 ny += vertices[i + 6];
                 nz += vertices[i + 7];
             }
-            quads.add(new BakedQuad(data, -1, Direction.getNearest(nx, ny, nz), sprite, true));
+            Direction dir = Direction.getApproximateNearest(nx, ny, nz);
+            quads.add(new BakedQuad(pos[0], pos[1], pos[2], pos[3], uvs[0], uvs[1], uvs[2], uvs[3], dir, material));
         }
         return List.copyOf(quads);
     }

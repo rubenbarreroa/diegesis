@@ -2,9 +2,9 @@ package com.pockyl.diegesis.impl.client.focus;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -24,10 +24,10 @@ import java.util.function.Predicate;
  * to put something down. Everything here is in GUI pixels and drawn as the HUD draws the hotbar, so the swap is not seen.
  */
 final class HotbarLayout {
-    private static final ResourceLocation HOTBAR = ResourceLocation.withDefaultNamespace("hud/hotbar");
-    private static final ResourceLocation HOTBAR_SELECTION = ResourceLocation.withDefaultNamespace("hud/hotbar_selection");
-    private static final ResourceLocation OFFHAND_LEFT = ResourceLocation.withDefaultNamespace("hud/hotbar_offhand_left");
-    private static final ResourceLocation OFFHAND_RIGHT = ResourceLocation.withDefaultNamespace("hud/hotbar_offhand_right");
+    private static final Identifier HOTBAR = Identifier.withDefaultNamespace("hud/hotbar");
+    private static final Identifier HOTBAR_SELECTION = Identifier.withDefaultNamespace("hud/hotbar_selection");
+    private static final Identifier OFFHAND_LEFT = Identifier.withDefaultNamespace("hud/hotbar_offhand_left");
+    private static final Identifier OFFHAND_RIGHT = Identifier.withDefaultNamespace("hud/hotbar_offhand_right");
     private static final int BAR_WIDTH = 182;
     private static final int BAR_HEIGHT = 22;
     private static final int SLOT_PITCH = 20;
@@ -162,11 +162,11 @@ final class HotbarLayout {
     }
 
     /** Draws the bars as the HUD draws the hotbar, the rows over it in the same look, and the stacks on them. */
-    static void render(GuiGraphics graphics, Font font, ClientStation station, Inventory inventory, int hoveredSlot) {
+    static void render(GuiGraphicsExtractor graphics, Font font, ClientStation station, Inventory inventory, int hoveredSlot) {
         int left = width() / 2 - BAR_WIDTH / 2;
         int top = height() - BAR_HEIGHT;
-        graphics.blitSprite(HOTBAR, left, top, BAR_WIDTH, BAR_HEIGHT);
-        graphics.blitSprite(HOTBAR_SELECTION, left - 1 + inventory.selected * SLOT_PITCH, top - 1, 24, 23);
+        graphics.blitSprite(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, HOTBAR, left, top, BAR_WIDTH, BAR_HEIGHT);
+        graphics.blitSprite(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, HOTBAR_SELECTION, left - 1 + inventory.getSelectedSlot() * SLOT_PITCH, top - 1, 24, 23);
         for (int slot : UPPER) {
             int[] at = center(station, inventory, slot);
             int x0 = at[0] - SLOT_HALF;
@@ -181,7 +181,8 @@ final class HotbarLayout {
         }
         if (showsOffhand(station, inventory)) {
             int[] off = center(station, inventory, Inventory.SLOT_OFFHAND);
-            graphics.blitSprite(offhandLeft() ? OFFHAND_LEFT : OFFHAND_RIGHT, off[0] - (offhandLeft() ? 11 : 18), top - 1, 29, 24);
+            graphics.blitSprite(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                    offhandLeft() ? OFFHAND_LEFT : OFFHAND_RIGHT, off[0] - (offhandLeft() ? 11 : 18), top - 1, 29, 24);
         }
         for (int slot : shown(station, inventory)) {
             int[] at = center(station, inventory, slot);
@@ -194,16 +195,15 @@ final class HotbarLayout {
             if (!stack.isEmpty()) {
                 // A stack that has just landed here bounces.
                 float scale = FocusInput.get().gains().slotScale(slot);
-                graphics.pose().pushPose();
-                graphics.pose().translate(at[0], at[1], 0.0F);
-                graphics.pose().scale(scale, scale, 1.0F);
-                graphics.renderItem(stack, -8, -8);
-                graphics.renderItemDecorations(font, stack, -8, -8);
-                graphics.pose().popPose();
+                graphics.pose().pushMatrix();
+                graphics.pose().translate(at[0], at[1]);
+                graphics.pose().scale(scale, scale);
+                graphics.item(stack, -8, -8);
+                graphics.itemDecorations(font, stack, -8, -8);
+                graphics.pose().popMatrix();
             }
             if (slot == hoveredSlot || FocusInput.get().isSpreadTarget(new Target.Inventory(slot))) {
-                graphics.fillGradient(net.minecraft.client.renderer.RenderType.guiOverlay(), at[0] - 8, at[1] - 8, at[0] + 8, at[1] + 8,
-                        HIGHLIGHT, HIGHLIGHT, 0);
+                graphics.fill(at[0] - 8, at[1] - 8, at[0] + 8, at[1] + 8, HIGHLIGHT);
             }
         }
     }

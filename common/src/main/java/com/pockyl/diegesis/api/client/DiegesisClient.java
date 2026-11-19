@@ -2,7 +2,7 @@ package com.pockyl.diegesis.api.client;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import com.pockyl.diegesis.api.scene.SceneDefinition;
 import com.pockyl.diegesis.api.state.TankContents;
@@ -25,7 +25,7 @@ public final class DiegesisClient {
     }
 
     /** Client code (animations, sounds, effects) for the stations of a type. */
-    public static void registerBehavior(ResourceLocation station, StationBehavior.Factory factory) {
+    public static void registerBehavior(Identifier station, StationBehavior.Factory factory) {
         ClientRegistry.registerBehavior(station, factory);
     }
 
@@ -33,7 +33,7 @@ public final class DiegesisClient {
      * A scene built in code instead of a JSON file. A JSON file with the same id
      * ({@code assets/<namespace>/diegesis/scenes/<path>.json}) still wins, so resource packs can restyle it.
      */
-    public static void registerScene(ResourceLocation id, SceneDefinition scene) {
+    public static void registerScene(Identifier id, SceneDefinition scene) {
         ClientRegistry.registerScene(id, scene);
     }
 
@@ -41,7 +41,7 @@ public final class DiegesisClient {
      * Loads a block model that scenes use but that is not under {@code models/diegesis/} (every model there is loaded
      * by itself). {@code model} is a model id: {@code mymod:block/flask} for {@code assets/mymod/models/block/flask.json}.
      */
-    public static void registerModel(ResourceLocation model) {
+    public static void registerModel(Identifier model) {
         ClientRegistry.registerModel(model);
     }
 
@@ -51,17 +51,17 @@ public final class DiegesisClient {
      * in pixels. The item still needs a model file, for its display transforms; shapes are kept per item data.
      */
     public static void registerItemShape(net.minecraft.world.item.Item item, java.util.function.Function<net.minecraft.world.item.ItemStack, MeshShape> shape,
-            ResourceLocation texture) {
+            Identifier texture) {
         com.pockyl.diegesis.impl.client.mesh.ItemShapes.register(item, shape, texture);
     }
 
     /** A scene particle style, for emitters, effects and {@link StationView#spawnParticles}. */
-    public static void registerParticle(ResourceLocation id, ParticleStyle style) {
+    public static void registerParticle(Identifier id, ParticleStyle style) {
         ClientRegistry.registerParticle(id, style);
     }
 
     /** How a liquid looks in tanks (its id is a fluid's or one the mod made up for a reagent). */
-    public static void registerLiquid(ResourceLocation id, LiquidLook look) {
+    public static void registerLiquid(Identifier id, LiquidLook look) {
         ClientRegistry.registerLiquid(id, look);
     }
 
@@ -71,7 +71,7 @@ public final class DiegesisClient {
         return LiquidRenderer.look(contents).color();
     }
 
-    public static void registerEffect(ResourceLocation id, EffectHandler handler) {
+    public static void registerEffect(Identifier id, EffectHandler handler) {
         ClientRegistry.registerEffect(id, handler);
     }
 
@@ -158,10 +158,10 @@ public final class DiegesisClient {
      * ignores alpha: through these buffers they get the see-through item type, so they fade like any other icon. Other models must
      * be drawn with a see-through render type to fade.
      */
-    public static net.minecraft.client.renderer.MultiBufferSource tinted(net.minecraft.client.renderer.MultiBufferSource buffers, int argb) {
+    public static com.pockyl.diegesis.api.client.DiegesisBuffers tinted(com.pockyl.diegesis.api.client.DiegesisBuffers buffers, int argb) {
         boolean fading = argb >>> 24 < 255;
         return type -> {
-            net.minecraft.client.renderer.RenderType drawn = fading ? seeThrough(type) : type;
+            net.minecraft.client.renderer.rendertype.RenderType drawn = fading ? seeThrough(type) : type;
             if (drawn != type) {
                 com.pockyl.diegesis.impl.client.render.KeptTypes.keep(buffers, type);
             }
@@ -169,11 +169,14 @@ public final class DiegesisClient {
         };
     }
 
-    private static net.minecraft.client.renderer.RenderType seeThrough(net.minecraft.client.renderer.RenderType type) {
-        if (type == net.minecraft.client.renderer.Sheets.cutoutBlockSheet() || type == net.minecraft.client.renderer.Sheets.solidBlockSheet()
-                || type == net.minecraft.client.renderer.RenderType.cutout() || type == net.minecraft.client.renderer.RenderType.cutoutMipped()
-                || type == net.minecraft.client.renderer.RenderType.solid()) {
+    private static net.minecraft.client.renderer.rendertype.RenderType seeThrough(net.minecraft.client.renderer.rendertype.RenderType type) {
+        if (type == net.minecraft.client.renderer.Sheets.cutoutItemSheet()) {
             return net.minecraft.client.renderer.Sheets.translucentItemSheet();
+        }
+        if (type == net.minecraft.client.renderer.Sheets.cutoutBlockItemSheet()
+                || type == net.minecraft.client.renderer.rendertype.RenderTypes.cutoutMovingBlock()
+                || type == net.minecraft.client.renderer.rendertype.RenderTypes.solidMovingBlock()) {
+            return net.minecraft.client.renderer.Sheets.translucentBlockItemSheet();
         }
         return type;
     }
@@ -190,6 +193,6 @@ public final class DiegesisClient {
      */
     public static boolean isSceneDrawn(BlockPos pos) {
         ClientStation station = ClientStations.get().at(pos);
-        return station != null && SceneRenderer.isDrawn(station, Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());
+        return station != null && SceneRenderer.isDrawn(station, Minecraft.getInstance().gameRenderer.mainCamera().position());
     }
 }

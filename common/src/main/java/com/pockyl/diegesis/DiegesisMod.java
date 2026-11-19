@@ -1,7 +1,7 @@
 package com.pockyl.diegesis;
 
 import com.mojang.logging.LogUtils;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
@@ -21,8 +21,8 @@ public final class DiegesisMod {
     private DiegesisMod() {
     }
 
-    public static ResourceLocation id(String path) {
-        return ResourceLocation.fromNamespaceAndPath(Diegesis.MOD_ID, path);
+    public static Identifier id(String path) {
+        return Identifier.fromNamespaceAndPath(Diegesis.MOD_ID, path);
     }
 
     public static void init() {
@@ -40,11 +40,11 @@ public final class DiegesisMod {
 
     /** A player's client has the library's channel: it hears which stations this server has. */
     public static void onChannelReady(ServerPlayer player) {
-        StationManager.get(player.server).sendStationTypes(player);
+        StationManager.get(player.level().getServer()).sendStationTypes(player);
     }
 
     public static void onPlayerLogout(ServerPlayer player) {
-        StationManager.get(player.server).onLogout(player);
+        StationManager.get(player.level().getServer()).onLogout(player);
     }
 
     public static void onServerStopped(MinecraftServer server) {

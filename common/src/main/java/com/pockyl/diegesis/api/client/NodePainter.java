@@ -1,7 +1,7 @@
 package com.pockyl.diegesis.api.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.renderer.MultiBufferSource;
+import com.pockyl.diegesis.api.client.DiegesisBuffers;
 
 /**
  * Draws something by code at a node ({@link NodeView#setPainter}), with the scene and in it: a vanilla entity model, text on a page, items
@@ -16,7 +16,7 @@ public interface NodePainter {
      * @param buffers   the scene's: what is opaque is drawn first, see-through block sheets after it, sorted
      * @param light     packed light at the node
      */
-    void paint(PoseStack poseStack, MultiBufferSource buffers, int light);
+    void paint(PoseStack poseStack, DiegesisBuffers buffers, int light);
 
     /**
      * Whether this is drawn smooth: while the player works at the station, over the finished frame and supersampled, so its edges

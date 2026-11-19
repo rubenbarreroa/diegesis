@@ -4,7 +4,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,7 +26,7 @@ public final class TankContents {
         this.total = portions.stream().mapToInt(Portion::amount).sum();
     }
 
-    public static TankContents of(ResourceLocation liquid, int amount) {
+    public static TankContents of(Identifier liquid, int amount) {
         return amount <= 0 ? EMPTY : new TankContents(List.of(new Portion(liquid, amount)));
     }
 
@@ -44,12 +44,12 @@ public final class TankContents {
     }
 
     /** The liquid making up most of it, or null when empty. */
-    public ResourceLocation main() {
+    public Identifier main() {
         return portions.stream().max(java.util.Comparator.comparingInt(Portion::amount)).map(Portion::liquid).orElse(null);
     }
 
     /** Millibuckets of one liquid. */
-    public int amountOf(ResourceLocation liquid) {
+    public int amountOf(Identifier liquid) {
         return portions.stream().filter(portion -> portion.liquid.equals(liquid)).mapToInt(Portion::amount).sum();
     }
 
@@ -124,11 +124,11 @@ public final class TankContents {
 
     public static TankContents load(CompoundTag tag) {
         List<Portion> portions = new ArrayList<>();
-        ListTag list = tag.getList("Portions", Tag.TAG_COMPOUND);
+        ListTag list = tag.getListOrEmpty("Portions");
         for (int i = 0; i < list.size(); i++) {
-            CompoundTag entry = list.getCompound(i);
-            ResourceLocation liquid = ResourceLocation.tryParse(entry.getString("Liquid"));
-            int amount = entry.getInt("Amount");
+            CompoundTag entry = list.getCompoundOrEmpty(i);
+            Identifier liquid = Identifier.tryParse(entry.getStringOr("Liquid", ""));
+            int amount = entry.getIntOr("Amount", 0);
             if (liquid != null && amount > 0) {
                 portions.add(new Portion(liquid, amount));
             }
@@ -139,7 +139,7 @@ public final class TankContents {
     public void write(FriendlyByteBuf buf) {
         buf.writeVarInt(portions.size());
         for (Portion portion : portions) {
-            buf.writeResourceLocation(portion.liquid);
+            buf.writeIdentifier(portion.liquid);
             buf.writeVarInt(portion.amount);
         }
     }
@@ -148,7 +148,7 @@ public final class TankContents {
         int count = Math.min(buf.readVarInt(), 64);
         List<Portion> portions = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            portions.add(new Portion(buf.readResourceLocation(), buf.readVarInt()));
+            portions.add(new Portion(buf.readIdentifier(), buf.readVarInt()));
         }
         return new TankContents(portions);
     }
@@ -169,6 +169,6 @@ public final class TankContents {
     }
 
     /** An amount of one liquid. */
-    public record Portion(ResourceLocation liquid, int amount) {
+    public record Portion(Identifier liquid, int amount) {
     }
 }

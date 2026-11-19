@@ -92,7 +92,7 @@ public final class StationManager {
     /** {@link #open} for players without the library's channel: game tests (mock players) and load tests only. */
     @org.jetbrains.annotations.ApiStatus.Internal
     public boolean openWithoutChannelCheck(ServerPlayer player, BlockPos pos) {
-        ServerLevel level = player.serverLevel();
+        ServerLevel level = player.level();
         if (!level.isLoaded(pos) || player.isSpectator()) {
             return false;
         }
@@ -123,7 +123,7 @@ public final class StationManager {
         if (station == null) {
             // On a moving structure, where the player stands as seen from the structure's own blocks.
             Vec3 from = SubLevels.toLevel(level, pos, player.position(), false);
-            Direction towardsPlayer = Direction.getNearest(from.x - pos.getX() - 0.5, 0.0, from.z - pos.getZ() - 0.5);
+            Direction towardsPlayer = Direction.getApproximateNearest(from.x - pos.getX() - 0.5, 0.0, from.z - pos.getZ() - 0.5);
             if (!towardsPlayer.getAxis().isHorizontal()) {
                 towardsPlayer = player.getDirection().getOpposite();
             }

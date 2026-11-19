@@ -1,7 +1,7 @@
 package com.pockyl.diegesis.api;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
@@ -29,7 +29,7 @@ public final class Diegesis {
     }
 
     /** Starts a station type; finish it with {@link StationType.Builder#register()}. */
-    public static StationType.Builder station(ResourceLocation id) {
+    public static StationType.Builder station(Identifier id) {
         return StationType.builder(id);
     }
 
@@ -38,7 +38,7 @@ public final class Diegesis {
         return StationRegistry.register(type);
     }
 
-    public static Optional<StationType> stationType(ResourceLocation id) {
+    public static Optional<StationType> stationType(Identifier id) {
         return StationRegistry.byId(id);
     }
 
@@ -53,12 +53,12 @@ public final class Diegesis {
      * or their client lacks the library (then show your usual GUI).
      */
     public static boolean open(ServerPlayer player, BlockPos pos) {
-        return StationManager.get(player.server).open(player, pos);
+        return StationManager.get(player.level().getServer()).open(player, pos);
     }
 
     /** Ends the player's work at whatever station they use. */
     public static void close(ServerPlayer player) {
-        StationManager.get(player.server).close(player, true);
+        StationManager.get(player.level().getServer()).close(player, true);
     }
 
     /** A station currently in use at {@code pos}. */

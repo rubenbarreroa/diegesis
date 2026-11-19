@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.DataResult;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -31,7 +31,7 @@ public final class NodeTemplates {
     }
 
     /** The scene file with every node's template applied, or why that failed. */
-    public static DataResult<JsonElement> expand(JsonElement scene, Function<ResourceLocation, JsonObject> templates) {
+    public static DataResult<JsonElement> expand(JsonElement scene, Function<Identifier, JsonObject> templates) {
         if (!scene.isJsonObject()) {
             return DataResult.success(scene);
         }
@@ -61,7 +61,7 @@ public final class NodeTemplates {
         return result;
     }
 
-    private static void expandList(JsonObject owner, String key, Function<ResourceLocation, JsonObject> templates) throws TemplateException {
+    private static void expandList(JsonObject owner, String key, Function<Identifier, JsonObject> templates) throws TemplateException {
         JsonElement list = owner.get(key);
         if (list == null || !list.isJsonArray()) {
             return;
@@ -148,7 +148,7 @@ public final class NodeTemplates {
         return result;
     }
 
-    private static JsonObject expandNode(JsonObject node, Function<ResourceLocation, JsonObject> templates, Deque<ResourceLocation> chain)
+    private static JsonObject expandNode(JsonObject node, Function<Identifier, JsonObject> templates, Deque<Identifier> chain)
             throws TemplateException {
         JsonObject result = node;
         JsonElement reference = node.get(KEY);
@@ -157,7 +157,7 @@ public final class NodeTemplates {
             if (!reference.isJsonPrimitive() || !reference.getAsJsonPrimitive().isString()) {
                 throw new TemplateException(where + ": \"template\" must be a template id like \"diegesis:control/knob\"");
             }
-            ResourceLocation id = ResourceLocation.tryParse(reference.getAsString());
+            Identifier id = Identifier.tryParse(reference.getAsString());
             if (id == null) {
                 throw new TemplateException(where + ": not a template id: " + reference.getAsString());
             }

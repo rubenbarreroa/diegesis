@@ -53,6 +53,26 @@ public final class TintedConsumer implements VertexConsumer {
     }
 
     @Override
+    public VertexConsumer setColor(int color) {
+        int tinted = Math.round((color >>> 24) * alpha) << 24 | Math.round((color >> 16 & 0xFF) * red) << 16
+                | Math.round((color >> 8 & 0xFF) * green) << 8 | Math.round((color & 0xFF) * blue);
+        delegate.setColor(tinted);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setUv3(float u, float v) {
+        delegate.setUv3(u, v);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setLineWidth(float width) {
+        delegate.setLineWidth(width);
+        return this;
+    }
+
+    @Override
     public VertexConsumer setNormal(float x, float y, float z) {
         delegate.setNormal(x, y, z);
         return this;

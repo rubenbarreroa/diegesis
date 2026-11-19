@@ -3,7 +3,7 @@ package com.pockyl.diegesis.api.client;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -73,32 +73,32 @@ public interface StationView {
      * @param particle a style id ({@link DiegesisParticles} or registered)
      * @param color    an ARGB tint, or 0 for the style's own colour
      */
-    void spawnParticles(ResourceLocation particle, String node, int count, int color);
+    void spawnParticles(Identifier particle, String node, int count, int color);
 
     /**
      * Scene particles at a point of the scene (pixels, before the facing turn), flying off with {@code velocity}
      * (pixels per second) give or take a little.
      */
-    void spawnParticles(ResourceLocation particle, Vector3fc at, Vector3fc velocity, float spread, int count, int color);
+    void spawnParticles(Identifier particle, Vector3fc at, Vector3fc velocity, float spread, int count, int color);
 
     /**
      * Scene particles anywhere inside the liquid of a node with a {@code tank} (wherever the node is now, also while it is
      * carried or tipped); they rise with {@code velocity} (pixels per second, in the node's space) and die at the
      * surface. Nothing happens while the tank is empty. Glints in a reacting brew, bubbles from a dropped stone.
      */
-    void spawnInLiquid(ResourceLocation particle, String node, int count, int color, Vector3fc velocity);
+    void spawnInLiquid(Identifier particle, String node, int count, int color, Vector3fc velocity);
 
     /**
      * Scene particles leaving the surface of a node's liquid, at random points of it, with {@code velocity} (pixels per second, in
      * the node's space): steam off a soup. Nothing happens while the tank is empty.
      */
-    void spawnOnLiquid(ResourceLocation particle, String node, int count, int color, Vector3fc velocity);
+    void spawnOnLiquid(Identifier particle, String node, int count, int color, Vector3fc velocity);
 
     /**
      * Scene particles on the surface of a node's liquid along its walls, where a pot starts to boil: small bubbles, {@code scale} times the
      * style's size, that stay where they are and ring the liquid when they end. Use {@code DiegesisParticles.BUBBLE_POP}.
      */
-    void spawnAtLiquidEdge(ResourceLocation particle, String node, int count, int color, float scale);
+    void spawnAtLiquidEdge(Identifier particle, String node, int count, int color, float scale);
 
     /**
      * Keeps a stream of liquid running this frame from {@code from} down to {@code to} (scene pixels, before the facing turn), as

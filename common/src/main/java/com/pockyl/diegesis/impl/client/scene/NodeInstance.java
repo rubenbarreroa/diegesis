@@ -96,7 +96,7 @@ public final class NodeInstance implements NodeView {
 
     /** A shape made by code, drawn at the node, and its texture. */
     private com.pockyl.diegesis.api.client.MeshShape shape;
-    private net.minecraft.resources.ResourceLocation shapeTexture;
+    private net.minecraft.resources.Identifier shapeTexture;
     private boolean shapeGlows;
     private com.pockyl.diegesis.api.client.NodePainter painter;
     private com.pockyl.diegesis.impl.client.fx.LiquidPieces floating;
@@ -342,12 +342,12 @@ public final class NodeInstance implements NodeView {
     }
 
     @Override
-    public void setShape(com.pockyl.diegesis.api.client.MeshShape value, net.minecraft.resources.ResourceLocation texture) {
+    public void setShape(com.pockyl.diegesis.api.client.MeshShape value, net.minecraft.resources.Identifier texture) {
         setShape(value, texture, false);
     }
 
     @Override
-    public void setShape(com.pockyl.diegesis.api.client.MeshShape value, net.minecraft.resources.ResourceLocation texture, boolean glowing) {
+    public void setShape(com.pockyl.diegesis.api.client.MeshShape value, net.minecraft.resources.Identifier texture, boolean glowing) {
         shape = value;
         shapeTexture = texture;
         shapeGlows = glowing;
@@ -428,7 +428,7 @@ public final class NodeInstance implements NodeView {
     }
 
     @Override
-    public void showLiquid(net.minecraft.resources.ResourceLocation id, float fraction) {
+    public void showLiquid(net.minecraft.resources.Identifier id, float fraction) {
         if (liquid == null) {
             return;
         }
@@ -480,7 +480,7 @@ public final class NodeInstance implements NodeView {
         return shape;
     }
 
-    public net.minecraft.resources.ResourceLocation shapeTexture() {
+    public net.minecraft.resources.Identifier shapeTexture() {
         return shapeTexture;
     }
 

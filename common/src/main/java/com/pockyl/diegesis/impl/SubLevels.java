@@ -71,7 +71,7 @@ public final class SubLevels {
 
     /** The world's centre of the block at {@code pos}. */
     public static Vec3 center(Level level, BlockPos pos, boolean render) {
-        return toWorld(level, pos, pos.getCenter(), render);
+        return toWorld(level, pos, Vec3.atCenterOf(pos), render);
     }
 
     /** Squared distance from the world's {@code point} to the centre of the block at {@code pos}, wherever it is. */

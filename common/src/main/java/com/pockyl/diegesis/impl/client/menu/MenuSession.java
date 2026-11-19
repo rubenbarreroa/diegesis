@@ -5,7 +5,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.protocol.game.ServerboundContainerButtonClickPacket;
 import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 
@@ -202,7 +202,7 @@ public final class MenuSession implements MenuAccess {
             lastAutoTick = ticks;
             int slot = MenuClicks.inventorySlot(menu, Minecraft.getInstance().player.getInventory(), autoMoves.removeFirst());
             if (slot >= 0) {
-                send(new MenuClicks.Click(slot, 0, ClickType.QUICK_MOVE));
+                send(new MenuClicks.Click(slot, 0, ContainerInput.QUICK_MOVE));
             }
         }
     }
@@ -254,7 +254,7 @@ public final class MenuSession implements MenuAccess {
     }
 
     /** One vanilla click on whatever a target shows: number keys, Q, middle click. */
-    public boolean click(ClientStation target, StationAction.Target where, int button, ClickType type) {
+    public boolean click(ClientStation target, StationAction.Target where, int button, ContainerInput type) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (station != target || menu == null || player == null || player.containerMenu != menu) {
             return false;
@@ -296,8 +296,8 @@ public final class MenuSession implements MenuAccess {
         }
         int from = amount < 0.0 ? at : other;
         int to = amount < 0.0 ? other : at;
-        return sendAll(List.of(new MenuClicks.Click(from, 0, ClickType.PICKUP), new MenuClicks.Click(to, 1, ClickType.PICKUP),
-                new MenuClicks.Click(from, 0, ClickType.PICKUP)));
+        return sendAll(List.of(new MenuClicks.Click(from, 0, ContainerInput.PICKUP), new MenuClicks.Click(to, 1, ContainerInput.PICKUP),
+                new MenuClicks.Click(from, 0, ContainerInput.PICKUP)));
     }
 
     /** The menu slots on one side: the inventory's, or the station's own slot groups. */
@@ -351,18 +351,18 @@ public final class MenuSession implements MenuAccess {
     }
 
     /** A key over the off hand, which this menu has no slot for: through vanilla's off-hand swap. */
-    private List<MenuClicks.Click> offhandKey(LocalPlayer player, int button, ClickType type) {
+    private List<MenuClicks.Click> offhandKey(LocalPlayer player, int button, ContainerInput type) {
         net.minecraft.world.entity.player.Inventory inventory = player.getInventory();
         int offhand = net.minecraft.world.entity.player.Inventory.SLOT_OFFHAND;
-        if (type == ClickType.SWAP && button >= 0 && button < 9) {
+        if (type == ContainerInput.SWAP && button >= 0 && button < 9) {
             // A number key: that hotbar slot and the off hand change places.
             int hotbar = MenuClicks.inventorySlot(menu, inventory, button);
-            return hotbar < 0 ? List.of() : List.of(new MenuClicks.Click(hotbar, offhand, ClickType.SWAP));
+            return hotbar < 0 ? List.of() : List.of(new MenuClicks.Click(hotbar, offhand, ContainerInput.SWAP));
         }
         int free = MenuClicks.freeSlot(menu, inventory);
-        if (type == ClickType.THROW && free >= 0) {
-            return List.of(new MenuClicks.Click(free, offhand, ClickType.SWAP), new MenuClicks.Click(free, button, ClickType.THROW),
-                    new MenuClicks.Click(free, offhand, ClickType.SWAP));
+        if (type == ContainerInput.THROW && free >= 0) {
+            return List.of(new MenuClicks.Click(free, offhand, ContainerInput.SWAP), new MenuClicks.Click(free, button, ContainerInput.THROW),
+                    new MenuClicks.Click(free, offhand, ContainerInput.SWAP));
         }
         return List.of();
     }
@@ -394,7 +394,7 @@ public final class MenuSession implements MenuAccess {
             return;
         }
         try {
-            minecraft.gameMode.handleInventoryMouseClick(menu.containerId, click.slot(), click.button(), click.type(), minecraft.player);
+            minecraft.gameMode.handleContainerInput(menu.containerId, click.slot(), click.button(), click.type(), minecraft.player);
         } catch (RuntimeException e) {
             // A menu of another mod that throws on a click must not take the game down; the server corrects the slots.
             DiegesisMod.LOGGER.error("Menu click {} failed in {}", click, menu, e);
@@ -419,7 +419,7 @@ public final class MenuSession implements MenuAccess {
     }
 
     @Override
-    public void click(int menuSlot, int button, ClickType type) {
+    public void click(int menuSlot, int button, ContainerInput type) {
         if (menu != null) {
             sendAll(List.of(new MenuClicks.Click(menuSlot, button, type)));
         }
@@ -439,14 +439,8 @@ public final class MenuSession implements MenuAccess {
     }
 
     @Override
-    public void placeRecipe(net.minecraft.resources.ResourceLocation recipe, boolean all) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (menu == null || minecraft.player == null || minecraft.level == null || minecraft.gameMode == null
-                || minecraft.player.containerMenu != menu) {
-            return;
-        }
-        minecraft.level.getRecipeManager().byKey(recipe)
-                .ifPresent(found -> minecraft.gameMode.handlePlaceRecipe(menu.containerId, found, all));
+    public void placeRecipe(net.minecraft.resources.Identifier recipe, boolean all) {
+        // Recipe placement by Identifier was replaced by RecipeDisplayId in 1.21.2+/26.3; no-op fallback if called by ID.
     }
 
     /** A slot group's window on the open menu; empty while no menu is open. Never written by the library. */

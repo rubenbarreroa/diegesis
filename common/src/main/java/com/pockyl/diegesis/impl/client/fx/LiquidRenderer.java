@@ -3,14 +3,14 @@ package com.pockyl.diegesis.impl.client.fx;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LightTexture;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.util.LightCoordsUtil;
+import com.pockyl.diegesis.api.client.DiegesisBuffers;
 import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.FastColor;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -107,7 +107,7 @@ public final class LiquidRenderer {
      * @param lightDir the direction to the scene's light in the node's space (unit)
      */
     public static void render(TankBinding binding, LiquidSim sim, Vector3fc up, Vector3fc lightDir, PoseStack poseStack,
-            MultiBufferSource buffers, int light) {
+            DiegesisBuffers buffers, int light) {
         LiquidLook look = sim.look();
         float fraction = sim.fraction();
         if (look == null || fraction < 0.002F) {
@@ -136,9 +136,9 @@ public final class LiquidRenderer {
                 RING_Z[i] = i == 0 || i == 1 ? hz : -hz;
             }
         }
-        TextureAtlasSprite sprite = Minecraft.getInstance().getTextureAtlas(TextureAtlas.LOCATION_BLOCKS).apply(look.sprite());
-        Pass pass = new Pass(buffers.getBuffer(Sheets.translucentCullBlockSheet()), poseStack.last(), sprite,
-                look.emissive() ? LightTexture.FULL_BRIGHT : light, sim.color(), cx, cy, cz, Math.max(hy, 0.5F), up, level,
+        TextureAtlasSprite sprite = Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(net.minecraft.data.AtlasIds.BLOCKS).getSprite(look.sprite());
+        Pass pass = new Pass(buffers.getBuffer(Sheets.translucentBlockItemSheet()), poseStack.last(), sprite,
+                look.emissive() ? LightCoordsUtil.FULL_BRIGHT : light, sim.color(), cx, cy, cz, Math.max(hy, 0.5F), up, level,
                 Math.max(SPRITE_SIZE, (hx + hz / 2.0F) * 2.0F), Math.max(SPRITE_SIZE, (hz + hy) * 2.0F));
         pass.eye = poseStack.last().pose().invert(new Matrix4f()).transformPosition(new Vector3f()).sub(cx, cy, cz);
         pass.sheen = 1.0F - 0.75F * look.viscosity();
@@ -244,7 +244,7 @@ public final class LiquidRenderer {
             g += (color >> 8 & 0xFF) * weight;
             b += (color & 0xFF) * weight;
         }
-        ResourceLocation main = contents.main();
+        Identifier main = contents.main();
         LiquidLook mainLook = ClientRegistry.liquid(main);
         int blended = Math.round(a) << 24 | Math.round(r) << 16 | Math.round(g) << 8 | Math.round(b);
         return new LiquidLook(blended, mainLook.sprite(), mainLook.emissive(), mainLook.viscosity());
@@ -341,7 +341,7 @@ public final class LiquidRenderer {
             // The sprite cannot repeat within a polygon; a tank bigger than it shows it stretched rather than cut.
             float u = u0 + uSpan * Mth.clamp(0.5F + (x + z * 0.5F) / spriteWidth, SPRITE_INSET, 1.0F - SPRITE_INSET);
             float v = v0 + vSpan * Mth.clamp(0.5F + (z + y) / spriteHeight, SPRITE_INSET, 1.0F - SPRITE_INSET);
-            consumer.addVertex(POINT.x, POINT.y, POINT.z, FastColor.ARGB32.colorFromFloat(Mth.clamp(a, 0.0F, 1.0F), Math.min(r, 1.0F),
+            consumer.addVertex(POINT.x, POINT.y, POINT.z, ARGB.colorFromFloat(Mth.clamp(a, 0.0F, 1.0F), Math.min(r, 1.0F),
                     Math.min(g, 1.0F), Math.min(b, 1.0F)), u, v, OverlayTexture.NO_OVERLAY, light, NORMAL.x, NORMAL.y, NORMAL.z);
         }
 

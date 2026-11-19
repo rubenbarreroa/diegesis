@@ -1,6 +1,6 @@
 package com.pockyl.diegesis.impl.client.mesh;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import org.joml.Vector3f;
@@ -24,23 +24,23 @@ public final class MeshLibrary {
     public static final MeshLibrary INSTANCE = new MeshLibrary();
     private static final String DIR = "diegesis/meshes";
 
-    private volatile Map<ResourceLocation, Mesh> meshes = Map.of();
+    private volatile Map<Identifier, Mesh> meshes = Map.of();
 
     private MeshLibrary() {
     }
 
     /** The mesh for an id, or null. */
-    public Mesh mesh(ResourceLocation id) {
+    public Mesh mesh(Identifier id) {
         return meshes.get(id);
     }
 
     /** Reads every mesh; runs off the render thread while resources reload. */
-    public static Map<ResourceLocation, Mesh> load(ResourceManager manager) {
-        Map<ResourceLocation, Mesh> loaded = new HashMap<>();
-        Map<ResourceLocation, Resource> files = manager.listResources(DIR, path -> path.getPath().endsWith(".obj"));
+    public static Map<Identifier, Mesh> load(ResourceManager manager) {
+        Map<Identifier, Mesh> loaded = new HashMap<>();
+        Map<Identifier, Resource> files = manager.listResources(DIR, path -> path.getPath().endsWith(".obj"));
         files.forEach((file, resource) -> {
             String path = file.getPath().substring(DIR.length() + 1, file.getPath().length() - ".obj".length());
-            ResourceLocation id = ResourceLocation.fromNamespaceAndPath(file.getNamespace(), path);
+            Identifier id = Identifier.fromNamespaceAndPath(file.getNamespace(), path);
             try (BufferedReader reader = resource.openAsReader()) {
                 loaded.put(id, parse(reader));
             } catch (IOException | RuntimeException e) {
@@ -50,7 +50,7 @@ public final class MeshLibrary {
         return loaded;
     }
 
-    public void apply(Map<ResourceLocation, Mesh> loaded) {
+    public void apply(Map<Identifier, Mesh> loaded) {
         meshes = Map.copyOf(loaded);
     }
 

@@ -3,13 +3,13 @@ package com.pockyl.diegesis.impl.client.fx;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
+import com.pockyl.diegesis.api.client.DiegesisBuffers;
 import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.FastColor;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import org.joml.Quaternionf;
@@ -71,7 +71,7 @@ public final class LiquidPieces {
     private static final float SIDE_X = 0.62F;
     private static final float SIDE_Z = 0.78F;
     /** Which pixels every sprite has: a sprite stays the same as long as the game runs on these resources. */
-    private static final Map<ResourceLocation, int[][]> SHAPES = new HashMap<>();
+    private static final Map<Identifier, int[][]> SHAPES = new HashMap<>();
 
     private final List<Piece> pieces = new ArrayList<>();
     private final RandomSource random = RandomSource.create();
@@ -154,12 +154,12 @@ public final class LiquidPieces {
     }
 
     /** Draws the pieces; the pose stack is in the node's pixels. */
-    public void render(Box inner, LiquidSim sim, PoseStack poseStack, MultiBufferSource buffers, int light) {
+    public void render(Box inner, LiquidSim sim, PoseStack poseStack, DiegesisBuffers buffers, int light) {
         if (pieces.isEmpty()) {
             return;
         }
-        VertexConsumer consumer = buffers.getBuffer(Sheets.cutoutBlockSheet());
-        var atlas = Minecraft.getInstance().getTextureAtlas(TextureAtlas.LOCATION_BLOCKS);
+        VertexConsumer consumer = buffers.getBuffer(Sheets.cutoutBlockItemSheet());
+        var atlas = Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(net.minecraft.data.AtlasIds.BLOCKS);
         float halfX = (inner.to().x() - inner.from().x()) / 2.0F;
         float halfZ = (inner.to().z() - inner.from().z()) / 2.0F;
         float centerX = inner.from().x() + halfX;
@@ -202,8 +202,8 @@ public final class LiquidPieces {
             poseStack.pushPose();
             poseStack.translate(piece.x, surface + LIFT + piece.floater.size() * 0.1F + hop - below - sim.height(waveU, waveV), piece.z);
             turn.rotationY(piece.yaw).rotateX(rock + (piece.over ? Mth.PI : 0.0F) + eased * Mth.PI);
-            poseStack.mulPose(turn);
-            piece.draw(consumer, poseStack.last(), atlas.apply(piece.floater.sprite()), size, light);
+            poseStack.rotate(turn);
+            piece.draw(consumer, poseStack.last(), atlas.getSprite(piece.floater.sprite()), size, light);
             poseStack.popPose();
         }
     }
@@ -269,7 +269,7 @@ public final class LiquidPieces {
     }
 
     /** Where the sprite has a pixel: 1, see-through: 0. */
-    private static int[][] shape(ResourceLocation id, TextureAtlasSprite sprite) {
+    private static int[][] shape(Identifier id, TextureAtlasSprite sprite) {
         return SHAPES.computeIfAbsent(id, key -> {
             int[][] steps = new int[sprite.contents().width()][sprite.contents().height()];
             for (int x = 0; x < steps.length; x++) {
@@ -428,7 +428,7 @@ public final class LiquidPieces {
         private static void corner(VertexConsumer consumer, PoseStack.Pose pose, float x, float y, float z, float u, float v, float red, float green,
                 float blue, int light, Vector3f normal) {
             Vector3f point = pose.pose().transformPosition(new Vector3f(x, y, z));
-            int color = FastColor.ARGB32.colorFromFloat(1.0F, red, green, blue);
+            int color = ARGB.colorFromFloat(1.0F, red, green, blue);
             consumer.addVertex(point.x, point.y, point.z, color, u, v, OverlayTexture.NO_OVERLAY, light, normal.x, normal.y, normal.z);
         }
     }

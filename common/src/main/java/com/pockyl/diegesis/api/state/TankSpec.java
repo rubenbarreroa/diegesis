@@ -1,6 +1,6 @@
 package com.pockyl.diegesis.api.state;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.function.Predicate;
 
@@ -14,7 +14,7 @@ import java.util.function.Predicate;
  *                 {@code initial}
  * @param initial  what a fresh tank holds
  */
-public record TankSpec(int capacity, Predicate<ResourceLocation> accepts, int pourRate, boolean keep, TankContents initial) {
+public record TankSpec(int capacity, Predicate<Identifier> accepts, int pourRate, boolean keep, TankContents initial) {
     public TankSpec {
         if (capacity < 1) {
             throw new IllegalArgumentException("A tank needs a capacity, got " + capacity);
@@ -29,7 +29,7 @@ public record TankSpec(int capacity, Predicate<ResourceLocation> accepts, int po
         return new TankSpec(capacity, liquid -> true, 1000, false, TankContents.EMPTY);
     }
 
-    public TankSpec accepts(Predicate<ResourceLocation> value) {
+    public TankSpec accepts(Predicate<Identifier> value) {
         return new TankSpec(capacity, value, pourRate, keep, initial);
     }
 
@@ -42,7 +42,7 @@ public record TankSpec(int capacity, Predicate<ResourceLocation> accepts, int po
     }
 
     /** Starts full of (or partly filled with) one liquid. */
-    public TankSpec filledWith(ResourceLocation liquid, int amount) {
+    public TankSpec filledWith(Identifier liquid, int amount) {
         return new TankSpec(capacity, accepts, pourRate, keep, TankContents.of(liquid, Math.min(amount, capacity)));
     }
 }

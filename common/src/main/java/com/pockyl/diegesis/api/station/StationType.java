@@ -2,7 +2,7 @@ package com.pockyl.diegesis.api.station;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;
@@ -22,7 +22,7 @@ import java.util.function.Supplier;
 
 /**
  * A kind of in-world interface, bound to blocks: what happens when a player uses such a block. Create one with
- * {@link Diegesis#station(ResourceLocation)} in common code, so the server and the client both know it.
+ * {@link Diegesis#station(Identifier)} in common code, so the server and the client both know it.
  *
  * <pre>{@code
  * public static final StationType LAB_TABLE = Diegesis.station(MyMod.id("lab_table"))
@@ -36,7 +36,7 @@ import java.util.function.Supplier;
  * unless {@link Builder#scene} names another.
  */
 public final class StationType {
-    private final ResourceLocation id;
+    private final Identifier id;
     private final Set<Block> blocks;
     private final List<Supplier<? extends Block>> lateBlocks;
     private volatile Set<Block> resolvedLateBlocks;
@@ -45,7 +45,7 @@ public final class StationType {
     private final Predicate<BlockState> condition;
     private final Authority authority;
     private final StationSchema schema;
-    private final ResourceLocation scene;
+    private final Identifier scene;
     private final StationLogic.Factory logic;
     private final OpenCondition openCondition;
     private final Orientation orientation;
@@ -132,11 +132,11 @@ public final class StationType {
         return java.util.Optional.ofNullable(best);
     }
 
-    public static Builder builder(ResourceLocation id) {
+    public static Builder builder(Identifier id) {
         return new Builder(id);
     }
 
-    public ResourceLocation id() {
+    public Identifier id() {
         return id;
     }
 
@@ -198,7 +198,7 @@ public final class StationType {
     }
 
     /** The scene id: {@code assets/<namespace>/diegesis/scenes/<path>.json}. */
-    public ResourceLocation scene() {
+    public Identifier scene() {
         return scene;
     }
 
@@ -314,7 +314,7 @@ public final class StationType {
         private boolean hidesBlock;
         private Span hidden = Span.NONE;
         private boolean idleLogic;
-        private final ResourceLocation id;
+        private final Identifier id;
         private final Set<Block> blocks = new LinkedHashSet<>();
         private final List<Supplier<? extends Block>> lateBlocks = new java.util.ArrayList<>();
         private Anchor anchor = Anchor.SELF;
@@ -322,7 +322,7 @@ public final class StationType {
         private Predicate<BlockState> condition = state -> true;
         private Authority authority = Authority.SERVER;
         private StationSchema schema = StationSchema.EMPTY;
-        private ResourceLocation scene;
+        private Identifier scene;
         private StationLogic.Factory logic = station -> StationLogic.NONE;
         private OpenCondition openCondition = OpenCondition.DEFAULT;
         private Orientation orientation = Orientation.AUTO;
@@ -331,7 +331,7 @@ public final class StationType {
         private final List<Seat> seats = new java.util.ArrayList<>();
         private MenuBinding menu;
 
-        private Builder(ResourceLocation id) {
+        private Builder(Identifier id) {
             this.id = Objects.requireNonNull(id);
         }
 
@@ -396,7 +396,7 @@ public final class StationType {
         }
 
         /** Another scene than the one named like the station. */
-        public Builder scene(ResourceLocation value) {
+        public Builder scene(Identifier value) {
             scene = value;
             return this;
         }

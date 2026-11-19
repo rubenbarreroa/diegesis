@@ -2,7 +2,7 @@ package com.pockyl.diegesis.api.scene;
 
 import com.mojang.serialization.Codec;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
@@ -41,7 +41,7 @@ import java.util.Optional;
  *                    ({@code StationView.setInventoryFilter}), in the order they had when the station opened, with one empty
  *                    slot always among them. Side, align, icon, style and compact do not apply to it
  */
-public record InventoryDrawer(Side side, float align, Item icon, Optional<ResourceLocation> iconTexture, float hoverZone, float openDelay,
+public record InventoryDrawer(Side side, float align, Item icon, Optional<Identifier> iconTexture, float hoverZone, float openDelay,
         float closeDelay, float slideTime, float margin, Style style, int background, int slotColor, boolean alwaysOpen, boolean compact,
         Optional<Float> carrySize, Layout layout) {
     public static final InventoryDrawer DEFAULT = new InventoryDrawer(Side.RIGHT, 0.5F, Items.BUNDLE, Optional.empty(), 10.0F, 0.08F, 0.35F,
@@ -51,7 +51,7 @@ public record InventoryDrawer(Side side, float align, Item icon, Optional<Resour
             StrictCodecs.optional(Side.CODEC, "side", DEFAULT.side).forGetter(InventoryDrawer::side),
             StrictCodecs.optional(Codec.floatRange(0.0F, 1.0F), "align", DEFAULT.align).forGetter(InventoryDrawer::align),
             StrictCodecs.optional(BuiltInRegistries.ITEM.byNameCodec(), "icon", DEFAULT.icon).forGetter(InventoryDrawer::icon),
-            StrictCodecs.optional(ResourceLocation.CODEC, "icon_texture").forGetter(InventoryDrawer::iconTexture),
+            StrictCodecs.optional(Identifier.CODEC, "icon_texture").forGetter(InventoryDrawer::iconTexture),
             StrictCodecs.optional(Codec.floatRange(0.0F, 64.0F), "hover_zone", DEFAULT.hoverZone).forGetter(InventoryDrawer::hoverZone),
             StrictCodecs.optional(Codec.floatRange(0.0F, 2.0F), "open_delay", DEFAULT.openDelay).forGetter(InventoryDrawer::openDelay),
             StrictCodecs.optional(Codec.floatRange(0.0F, 5.0F), "close_delay", DEFAULT.closeDelay).forGetter(InventoryDrawer::closeDelay),
@@ -67,7 +67,7 @@ public record InventoryDrawer(Side side, float align, Item icon, Optional<Resour
     ).apply(instance, InventoryDrawer::new));
 
     /** A drawer laid out in rows, as before there were layouts. */
-    public InventoryDrawer(Side side, float align, Item icon, Optional<ResourceLocation> iconTexture, float hoverZone, float openDelay,
+    public InventoryDrawer(Side side, float align, Item icon, Optional<Identifier> iconTexture, float hoverZone, float openDelay,
             float closeDelay, float slideTime, float margin, Style style, int background, int slotColor, boolean alwaysOpen, boolean compact,
             Optional<Float> carrySize) {
         this(side, align, icon, iconTexture, hoverZone, openDelay, closeDelay, slideTime, margin, style, background, slotColor, alwaysOpen,
@@ -75,7 +75,7 @@ public record InventoryDrawer(Side side, float align, Item icon, Optional<Resour
     }
 
     /** A drawer whose stacks keep the size of the last one carried. */
-    public InventoryDrawer(Side side, float align, Item icon, Optional<ResourceLocation> iconTexture, float hoverZone, float openDelay,
+    public InventoryDrawer(Side side, float align, Item icon, Optional<Identifier> iconTexture, float hoverZone, float openDelay,
             float closeDelay, float slideTime, float margin, Style style, int background, int slotColor, boolean alwaysOpen, boolean compact) {
         this(side, align, icon, iconTexture, hoverZone, openDelay, closeDelay, slideTime, margin, style, background, slotColor, alwaysOpen,
                 compact, Optional.empty(), Layout.ROWS);
@@ -98,7 +98,7 @@ public record InventoryDrawer(Side side, float align, Item icon, Optional<Resour
     }
 
     /** The same drawer with a 16x16 texture on its icon. */
-    public InventoryDrawer withIconTexture(ResourceLocation value) {
+    public InventoryDrawer withIconTexture(Identifier value) {
         return new InventoryDrawer(side, align, icon, Optional.of(value), hoverZone, openDelay, closeDelay, slideTime, margin, style, background,
                 slotColor, alwaysOpen, compact, carrySize, layout);
     }

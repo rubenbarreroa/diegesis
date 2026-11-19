@@ -177,7 +177,7 @@ public interface NodeView {
      * The first call, or one with another liquid, shows it at that level at once, as a new vessel; {@code null} follows the station's
      * tank again. Nothing happens without a tank.
      */
-    void showLiquid(net.minecraft.resources.ResourceLocation liquid, float fraction);
+    void showLiquid(net.minecraft.resources.Identifier liquid, float fraction);
 
     /**
      * Sends ripples over the node's liquid from a point, in the node's pixels: something dropped in, a stirring rod.
@@ -206,13 +206,13 @@ public interface NodeView {
      * it away. It goes with the node's visual, if there is one. Call it again when the shape changes. A tint with an alpha below
      * 255 ({@link #setTint}) makes it see-through.
      */
-    void setShape(MeshShape shape, net.minecraft.resources.ResourceLocation texture);
+    void setShape(MeshShape shape, net.minecraft.resources.Identifier texture);
 
     /** Draws by code at the node every frame, with the scene: a vanilla model, text on a page; {@code null} takes it away. */
     void setPainter(NodePainter painter);
 
     /** {@link #setShape}; with {@code glowing} it is drawn at full brightness, for marks that must read in the dark as well. */
-    void setShape(MeshShape shape, net.minecraft.resources.ResourceLocation texture, boolean glowing);
+    void setShape(MeshShape shape, net.minecraft.resources.Identifier texture, boolean glowing);
 
     /** Changes the light the node gives (0-15); see the scene's {@code light}. */
     void setLight(int level);

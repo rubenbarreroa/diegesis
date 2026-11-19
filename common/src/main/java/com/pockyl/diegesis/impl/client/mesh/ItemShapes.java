@@ -1,32 +1,25 @@
 package com.pockyl.diegesis.impl.client.mesh;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.block.model.BakedQuad;
-import net.minecraft.client.renderer.block.model.ItemOverrides;
-import net.minecraft.client.renderer.block.model.ItemTransforms;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.client.resources.model.BakedModel;
-import net.minecraft.core.Direction;
+import net.minecraft.client.resources.model.geometry.ItemQuads;
 import net.minecraft.core.component.DataComponentPatch;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.RandomSource;
-import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.data.AtlasIds;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.state.BlockState;
 
 import com.pockyl.diegesis.api.client.MeshShape;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
- * Items whose look is a {@link MeshShape} made from their data. The item keeps the model of its JSON file for its display
- * transforms; {@code ItemRendererMixin} swaps it where the game asks for the model of a stack, so inventories, frames, hands and
- * shelves all show the shape. Baked shapes are kept per item data, until the textures are stitched anew.
+ * Items whose look is a {@link MeshShape} made from their data. Applied onto {@link ItemStackRenderState}
+ * via {@code ItemRendererMixin} so inventories, frames, hands and shelves all show the procedural mesh.
  */
 public final class ItemShapes {
     private static final int KEPT_SHAPES = 256;
@@ -35,14 +28,30 @@ public final class ItemShapes {
     private ItemShapes() {
     }
 
-    public static void register(Item item, Function<ItemStack, MeshShape> shape, ResourceLocation texture) {
+    public static void register(Item item, Function<ItemStack, MeshShape> shape, Identifier texture) {
         ITEMS.put(item, new Entry(shape, texture));
     }
 
-    /** The model to draw {@code stack} with: its shape, or {@code model} for every other item. */
-    public static BakedModel resolve(ItemStack stack, BakedModel model) {
-        Entry entry = ITEMS.isEmpty() ? null : ITEMS.get(stack.getItem());
-        return entry == null ? model : entry.model(stack, model);
+    /** Replaces the first layer's quads of {@code state} when {@code stack} has a procedural mesh shape. */
+    public static void apply(ItemStack stack, ItemStackRenderState state) {
+        if (ITEMS.isEmpty() || stack.isEmpty()) {
+            return;
+        }
+        Entry entry = ITEMS.get(stack.getItem());
+        if (entry == null) {
+            return;
+        }
+        ItemQuads quads = entry.quads(stack);
+        if (state.activeLayerCount > 0) {
+            ItemStackRenderState.LayerRenderState layer = state.layers[0];
+            layer.setQuads(quads);
+            layer.setUsesBlockLight(true);
+            state.activeLayerCount = 1;
+        } else {
+            ItemStackRenderState.LayerRenderState layer = state.newLayer();
+            layer.setQuads(quads);
+            layer.setUsesBlockLight(true);
+        }
     }
 
     /** Models are new after a resource reload, and the sprites with them. */
@@ -52,79 +61,28 @@ public final class ItemShapes {
 
     private static final class Entry {
         private final Function<ItemStack, MeshShape> shape;
-        private final ResourceLocation texture;
-        private final Map<DataComponentPatch, BakedModel> baked = new LinkedHashMap<>(16, 0.75F, true) {
+        private final Identifier texture;
+        private final Map<DataComponentPatch, ItemQuads> baked = new LinkedHashMap<>(16, 0.75F, true) {
             @Override
-            protected boolean removeEldestEntry(Map.Entry<DataComponentPatch, BakedModel> eldest) {
+            protected boolean removeEldestEntry(Map.Entry<DataComponentPatch, ItemQuads> eldest) {
                 return size() > KEPT_SHAPES;
             }
         };
 
-        Entry(Function<ItemStack, MeshShape> shape, ResourceLocation texture) {
+        Entry(Function<ItemStack, MeshShape> shape, Identifier texture) {
             this.shape = shape;
             this.texture = texture;
         }
 
-        BakedModel model(ItemStack stack, BakedModel original) {
+        ItemQuads quads(ItemStack stack) {
             DataComponentPatch key = stack.getComponentsPatch();
-            BakedModel found = baked.get(key);
+            ItemQuads found = baked.get(key);
             if (found == null) {
-                TextureAtlasSprite sprite = Minecraft.getInstance().getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(texture);
-                found = new Shaped(original, shape.apply(stack).mesh().quads(sprite));
+                TextureAtlasSprite sprite = Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(AtlasIds.BLOCKS).getSprite(texture);
+                found = ItemQuads.split(shape.apply(stack).mesh().quads(sprite));
                 baked.put(key, found);
             }
             return found;
-        }
-    }
-
-    /** Fixed quads with the display transforms of the item's JSON model. */
-    private static final class Shaped implements BakedModel {
-        private final BakedModel original;
-        private final List<BakedQuad> quads;
-
-        Shaped(BakedModel original, List<BakedQuad> quads) {
-            this.original = original;
-            this.quads = quads;
-        }
-
-        @Override
-        public List<BakedQuad> getQuads(BlockState state, Direction side, RandomSource random) {
-            return side == null ? quads : List.of();
-        }
-
-        @Override
-        public boolean useAmbientOcclusion() {
-            return false;
-        }
-
-        @Override
-        public boolean isGui3d() {
-            return true;
-        }
-
-        @Override
-        public boolean usesBlockLight() {
-            return true;
-        }
-
-        @Override
-        public boolean isCustomRenderer() {
-            return false;
-        }
-
-        @Override
-        public TextureAtlasSprite getParticleIcon() {
-            return original.getParticleIcon();
-        }
-
-        @Override
-        public ItemTransforms getTransforms() {
-            return original.getTransforms();
-        }
-
-        @Override
-        public ItemOverrides getOverrides() {
-            return ItemOverrides.EMPTY;
         }
     }
 }

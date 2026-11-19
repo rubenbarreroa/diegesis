@@ -1,6 +1,6 @@
 package com.pockyl.diegesis.api.client;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import com.pockyl.diegesis.DiegesisMod;
 
@@ -14,21 +14,21 @@ import com.pockyl.diegesis.DiegesisMod;
  * @param solid  it has a body: a slice of voxels, one for every pixel of the sprite, as an item's model is, and a strong current turns it over
  *               now and then; off for what is only a film on the surface, a drop of fat: the flat sprite
  */
-public record Floater(ResourceLocation sprite, int color, float size, boolean solid) {
-    public Floater(ResourceLocation sprite, int color, float size) {
+public record Floater(Identifier sprite, int color, float size, boolean solid) {
+    public Floater(Identifier sprite, int color, float size) {
         this(sprite, color, size, true);
     }
 
     /** A round slice. */
-    public static final ResourceLocation COIN = DiegesisMod.id("block/bits/coin");
+    public static final Identifier COIN = DiegesisMod.id("block/bits/coin");
     /** A rough lump: meat, a piece of potato. */
-    public static final ResourceLocation CHUNK = DiegesisMod.id("block/bits/chunk");
+    public static final Identifier CHUNK = DiegesisMod.id("block/bits/chunk");
     /** A small lump. */
-    public static final ResourceLocation NUGGET = DiegesisMod.id("block/bits/nugget");
+    public static final Identifier NUGGET = DiegesisMod.id("block/bits/nugget");
     /** A long thin strip. */
-    public static final ResourceLocation SHRED = DiegesisMod.id("block/bits/shred");
+    public static final Identifier SHRED = DiegesisMod.id("block/bits/shred");
     /** A leaf, a flake of herbs. */
-    public static final ResourceLocation LEAF = DiegesisMod.id("block/bits/leaf");
+    public static final Identifier LEAF = DiegesisMod.id("block/bits/leaf");
     /** A drop of fat on a soup: tint it a little lighter than the liquid. */
-    public static final ResourceLocation DROP = DiegesisMod.id("block/bits/drop");
+    public static final Identifier DROP = DiegesisMod.id("block/bits/drop");
 }

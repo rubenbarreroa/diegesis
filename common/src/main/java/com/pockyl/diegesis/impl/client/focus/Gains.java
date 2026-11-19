@@ -1,10 +1,10 @@
 package com.pockyl.diegesis.impl.client.focus;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
@@ -197,7 +197,7 @@ final class Gains {
      * Draws the stacks in the air and those standing next to the drawer; once per frame over the screen. {@code asideX, asideY}: where
      * the first one that has no slot on show stands.
      */
-    void render(GuiGraphics graphics, Font font, float asideX, float asideY) {
+    void render(GuiGraphicsExtractor graphics, Font font, float asideX, float asideY) {
         long now = Util.getNanos();
         float dt = Math.min((now - lastFrame) / 1.0e9F, 0.1F);
         lastFrame = now;
@@ -266,22 +266,22 @@ final class Gains {
         }
     }
 
-    private static void draw(GuiGraphics graphics, ItemStack stack, float x, float y, float size, float alpha) {
+    private static void draw(GuiGraphicsExtractor graphics, ItemStack stack, float x, float y, float size, float alpha) {
         if (alpha <= 0.02F) {
             return;
         }
-        PoseStack pose = graphics.pose();
-        pose.pushPose();
-        pose.translate(x, y, Z);
+        var pose = graphics.pose();
+        pose.pushMatrix();
+        pose.translate(x, y);
         // GUI items cannot be drawn see-through: going away, it shrinks to nothing.
         float scale = size * alpha;
-        pose.scale(scale, scale, 1.0F);
-        graphics.renderItem(stack, -8, -8);
-        pose.popPose();
+        pose.scale(scale, scale);
+        graphics.item(stack, -8, -8);
+        pose.popMatrix();
     }
 
     /** "+N" in the game's own font and shadow, as the counts in the slots. */
-    private static void drawCount(GuiGraphics graphics, Font font, String count, float x, float y, float alpha) {
+    private static void drawCount(GuiGraphicsExtractor graphics, Font font, String count, float x, float y, float alpha) {
         if (count == null) {
             return;
         }
@@ -289,10 +289,10 @@ final class Gains {
         if (a < 5) {
             return;
         }
-        PoseStack pose = graphics.pose();
-        pose.pushPose();
-        pose.translate(Math.round(x), Math.round(y), Z + 100.0F);
-        graphics.drawString(font, count, 0, 0, a << 24 | COUNT_COLOR, true);
-        pose.popPose();
+        var pose = graphics.pose();
+        pose.pushMatrix();
+        pose.translate(Math.round(x), Math.round(y));
+        graphics.text(font, count, 0, 0, a << 24 | COUNT_COLOR, true);
+        pose.popMatrix();
     }
 }

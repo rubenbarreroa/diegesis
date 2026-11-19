@@ -2,15 +2,15 @@ package com.pockyl.diegesis.impl.client.fx;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LightTexture;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.util.LightCoordsUtil;
+import com.pockyl.diegesis.api.client.DiegesisBuffers;
 import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.util.FastColor;
+import net.minecraft.util.ARGB;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
@@ -105,7 +105,7 @@ public final class PourStreams {
      *
      * @param view the direction the camera looks, in station space (unit)
      */
-    public void render(PoseStack poseStack, MultiBufferSource buffers, Vector3fc view, int light, float width) {
+    public void render(PoseStack poseStack, DiegesisBuffers buffers, Vector3fc view, int light, float width) {
         render(poseStack, buffers, view, light, width, false);
     }
 
@@ -113,7 +113,7 @@ public final class PourStreams {
      * Draws the streams that land in a node drawn over everything ({@code overAll}), or the others: those are drawn with that node, so
      * that they run into it and are not covered by it.
      */
-    public void render(PoseStack poseStack, MultiBufferSource buffers, Vector3fc view, int light, float width, boolean overAll) {
+    public void render(PoseStack poseStack, DiegesisBuffers buffers, Vector3fc view, int light, float width, boolean overAll) {
         for (Stream stream : streams) {
             if (landsOverAll(stream) == overAll) {
                 stream.render(poseStack, buffers, view, light, width);
@@ -273,14 +273,14 @@ public final class PourStreams {
             dest.z += (float) Math.cos(s * 7.0F - time * 13.0F) * waver;
         }
 
-        void render(PoseStack poseStack, MultiBufferSource buffers, Vector3fc view, int light, float width) {
+        void render(PoseStack poseStack, DiegesisBuffers buffers, Vector3fc view, int light, float width) {
             if (look == null || head <= tail) {
                 return;
             }
-            TextureAtlasSprite sprite = Minecraft.getInstance().getTextureAtlas(TextureAtlas.LOCATION_BLOCKS).apply(look.sprite());
-            VertexConsumer consumer = buffers.getBuffer(Sheets.translucentCullBlockSheet());
+            TextureAtlasSprite sprite = Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(net.minecraft.data.AtlasIds.BLOCKS).getSprite(look.sprite());
+            VertexConsumer consumer = buffers.getBuffer(Sheets.translucentBlockItemSheet());
             PoseStack.Pose pose = poseStack.last();
-            int packed = look.emissive() ? LightTexture.FULL_BRIGHT : light;
+            int packed = look.emissive() ? LightCoordsUtil.FULL_BRIGHT : light;
             float time = (Util.getMillis() % 100000L) / 1000.0F;
             float strength = Math.max(0.1F, Math.min(1.0F, flow));
             float base = width * (float) Math.sqrt(strength);
@@ -333,7 +333,7 @@ public final class PourStreams {
             float wave = 0.02F + Math.abs(running - (float) Math.floor(running) - 0.5F) * 1.92F;
             float u = sprite.getU0() + (sprite.getU1() - sprite.getU0()) * (0.5F + across * 0.1F);
             float v = sprite.getV0() + (sprite.getV1() - sprite.getV0()) * wave;
-            int color = FastColor.ARGB32.colorFromFloat(Math.max(0.0F, Math.min(a, 1.0F)), Math.min(r, 1.0F), Math.min(g, 1.0F),
+            int color = ARGB.colorFromFloat(Math.max(0.0F, Math.min(a, 1.0F)), Math.min(r, 1.0F), Math.min(g, 1.0F),
                     Math.min(b, 1.0F));
             consumer.addVertex(point.x, point.y, point.z, color, u, v, OverlayTexture.NO_OVERLAY, light, normal.x, normal.y, normal.z);
         }

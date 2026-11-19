@@ -1,7 +1,7 @@
 package com.pockyl.diegesis.impl.client.hud;
 
-import net.minecraft.Util;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.util.Util;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -14,7 +14,7 @@ import java.util.Map;
  * The game's HUD sliding off the screen while the player starts to work at a station, and back when they leave
  * ({@link HudOptions}). The loaders draw each part of the HUD between {@link #begin} and {@link #end}: a NeoForge layer, a part of
  * the vanilla HUD on Fabric, all that mods draw through the loader's HUD hook. While a part is drawn, what it draws through
- * {@link GuiGraphics} is measured ({@link #include}), so each part goes to the edge of the screen nearest to it, as far as it
+ * {@link GuiGraphicsExtractor} is measured ({@link #include}), so each part goes to the edge of the screen nearest to it, as far as it
  * takes to be off the screen, wherever its mod put it. What covers most of the screen (a vignette, a frost border) stays where
  * it is until the HUD is hidden.
  */
@@ -116,7 +116,7 @@ public final class HudSlide {
     }
 
     /** Draws a part of the HUD from here on where the slide has it, measuring it; {@code key} names the part. */
-    public static void begin(String key, GuiGraphics graphics) {
+    public static void begin(String key, GuiGraphicsExtractor graphics) {
         if (depth++ > 0) {
             return;
         }
@@ -131,23 +131,44 @@ public final class HudSlide {
         maxX = Float.NEGATIVE_INFINITY;
         maxY = Float.NEGATIVE_INFINITY;
         offset(key, graphics.guiWidth(), graphics.guiHeight());
-        graphics.pose().pushPose();
-        graphics.pose().translate(shiftX, shiftY, 0.0F);
+        graphics.pose().pushMatrix();
+        graphics.pose().translate(shiftX, shiftY);
     }
 
     /** The part {@link #begin} started is drawn. */
-    public static void end(GuiGraphics graphics) {
+    public static void end(GuiGraphicsExtractor graphics) {
         if (depth == 0 || --depth > 0) {
             return;
         }
         if (!moved) {
             return;
         }
-        graphics.pose().popPose();
+        graphics.pose().popMatrix();
         if (measured) {
             BOXES.put(current, new float[] {minX, minY, maxX, maxY});
         }
         current = null;
+    }
+
+    /** Something is drawn over {@code x0, y0} to {@code x1, y1} through {@code pose}: it belongs to the part being drawn. */
+    public static void include(org.joml.Matrix3x2fc pose, float x0, float y0, float x1, float y1) {
+        if (current == null) {
+            return;
+        }
+        corner2d(pose, x0, y0);
+        corner2d(pose, x1, y0);
+        corner2d(pose, x0, y1);
+        corner2d(pose, x1, y1);
+    }
+
+    private static void corner2d(org.joml.Matrix3x2fc pose, float x, float y) {
+        float px = pose.m00() * x + pose.m10() * y + pose.m20() - shiftX;
+        float py = pose.m01() * x + pose.m11() * y + pose.m21() - shiftY;
+        minX = Math.min(minX, px);
+        minY = Math.min(minY, py);
+        maxX = Math.max(maxX, px);
+        maxY = Math.max(maxY, py);
+        measured = true;
     }
 
     /** Something is drawn over {@code x0, y0} to {@code x1, y1} through {@code pose}: it belongs to the part being drawn. */

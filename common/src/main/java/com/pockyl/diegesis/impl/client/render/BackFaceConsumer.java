@@ -84,6 +84,22 @@ final class BackFaceConsumer implements VertexConsumer {
     }
 
     @Override
+    public VertexConsumer setColor(int color) {
+        buildingPacked[0] = color;
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setUv3(float u, float v) {
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setLineWidth(float width) {
+        return this;
+    }
+
+    @Override
     public VertexConsumer setNormal(float x, float y, float z) {
         addVertex(building[0], building[1], building[2], buildingPacked[0], building[3], building[4], buildingPacked[1], buildingPacked[2], x,
                 y, z);

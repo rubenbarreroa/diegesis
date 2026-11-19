@@ -5,7 +5,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -43,7 +43,7 @@ public final class ClientStations {
     private final Map<BlockPos, ClientStation> stations = new HashMap<>();
     private ClientLevel level;
     /** The station types the server has; null until it says (and on a server that never does). */
-    private Set<ResourceLocation> serverTypes;
+    private Set<Identifier> serverTypes;
     private int ticks;
 
     private ClientStations() {
@@ -160,7 +160,7 @@ public final class ClientStations {
         ChunkPos center = player.chunkPosition();
         for (int dx = -IDLE_SCAN_CHUNKS; dx <= IDLE_SCAN_CHUNKS; dx++) {
             for (int dz = -IDLE_SCAN_CHUNKS; dz <= IDLE_SCAN_CHUNKS; dz++) {
-                LevelChunk chunk = level.getChunkSource().getChunk(center.x + dx, center.z + dz, false);
+                LevelChunk chunk = level.getChunkSource().getChunk(center.x() + dx, center.z() + dz, false);
                 if (chunk == null) {
                     continue;
                 }

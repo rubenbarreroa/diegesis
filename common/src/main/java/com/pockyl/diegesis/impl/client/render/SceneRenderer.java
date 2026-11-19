@@ -1,31 +1,35 @@
 package com.pockyl.diegesis.impl.client.render;
 
 import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
-import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.LightTexture;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.OutlineBufferSource;
-import net.minecraft.client.renderer.PostChain;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.util.LightCoordsUtil;
+import com.pockyl.diegesis.api.client.DiegesisBuffers;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.SubmitNodeStorage;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.feature.phase.FeatureRenderPhase;
+import net.minecraft.client.renderer.feature.submit.SubmitNode;
+import net.minecraft.client.renderer.feature.submit.TranslucentSubmit;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.Sheets;
+import net.minecraft.client.renderer.state.level.LevelRenderState;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.data.AtlasIds;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemDisplayContext;
@@ -37,7 +41,6 @@ import org.joml.Matrix4d;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
-import org.lwjgl.opengl.GL11;
 
 import com.pockyl.diegesis.DiegesisMod;
 import com.pockyl.diegesis.api.client.NodePainter;
@@ -65,14 +68,11 @@ import com.pockyl.diegesis.impl.client.scene.NodeInstance;
 import com.pockyl.diegesis.impl.client.scene.PlacedItem;
 import com.pockyl.diegesis.impl.client.scene.PlacedShape;
 import com.pockyl.diegesis.impl.client.scene.SceneInstance;
-import com.pockyl.diegesis.mixin.client.LevelRendererAccessor;
 import com.pockyl.diegesis.platform.ClientPlatform;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -85,7 +85,9 @@ public final class SceneRenderer {
     /** Stations farther than this (blocks) are not drawn. */
     private static final double RENDER_RANGE = 40.0;
     /** Shadows and highlights: block-atlas geometry, see-through, back faces culled (no double layers in a shadow). */
-    private static final RenderType OVERLAY = RenderType.entityTranslucentCull(TextureAtlas.LOCATION_BLOCKS);
+    private static final RenderType OVERLAY = RenderTypes.entityTranslucentCull(TextureAtlas.LOCATION_BLOCKS);
+    /** Item shadows: item-atlas geometry, see-through, back faces culled. */
+    private static final RenderType ITEM_OVERLAY = RenderTypes.entityTranslucentCull(TextureAtlas.LOCATION_ITEMS);
     /** Everything see-through of the scene goes here, in a buffer of its own: it stays one sorted batch. */
     private static final RenderType CLEAR = DiegesisRenderTypes.clearBlockSheet();
     /** Pixels between an item's right side and its count. */
@@ -93,32 +95,28 @@ public final class SceneRenderer {
     /** Opaque items of the scene, drawn after the opaque parts and before CLEAR, with depth: see {@link #solidItems}. */
     private static final RenderType ITEMS = DiegesisRenderTypes.itemSheet();
     /** The scene's own buffer source this frame (the see-through sheet drawn as CLEAR). */
-    private static MultiBufferSource sceneSource;
-    private static MultiBufferSource.BufferSource clearBuffers;
-    /**
-     * Everything else of the scene. Not the game's buffer source: see-through things write no depth, so the opaque ones must
-     * be on screen before them, and Oculus and Iris swap the game's source for one that ignores a flush of a single type and
-     * draws it all later, over the liquid.
-     */
-    private static MultiBufferSource.BufferSource sceneBuffers;
+    private static DiegesisBuffers sceneSource;
+    private static SubmitNodeStorage collecting;
+    private static DiegesisBuffers.BufferSource clearBuffers;
+    private static DiegesisBuffers.BufferSource sceneBuffers;
     /**
      * The flat sprite that highlights are tinted from: this library's own off-white, as white concrete was, so that a resource pack
      * that retextures concrete does not show through every highlighted slot.
      */
-    private static final ResourceLocation HIGHLIGHT_SPRITE = ResourceLocation.fromNamespaceAndPath("diegesis", "block/white");
+    private static final Identifier HIGHLIGHT_SPRITE = Identifier.fromNamespaceAndPath("diegesis", "block/white");
     /** Shadow lean per pixel of height: light from above, a little from the front left, like the GUI's light. */
     private static final float SHADOW_SHEAR_X = -0.22F;
     private static final float SHADOW_SHEAR_Z = 0.3F;
     /** Where the scene's light comes from, for highlights on liquids: the opposite of the shadows' lean. */
     private static final Vector3fc LIGHT_DIRECTION = new Vector3f(-SHADOW_SHEAR_X, 1.0F, -SHADOW_SHEAR_Z).normalize();
-    private static final Set<ResourceLocation> WARNED_MODELS = new HashSet<>();
+    private static final Set<Identifier> WARNED_MODELS = new HashSet<>();
     /** Pools of light: a soft round gradient made in code (no texture file), laid on the surface. */
     private static RenderType pool;
     private static final List<Count> PENDING_COUNTS = new ArrayList<>();
     /** What gets an outline this frame (the usable object under the cursor), drawn once the scene is done. */
-    private static final List<Consumer<MultiBufferSource>> PENDING_OUTLINES = new ArrayList<>();
+    private static final List<Consumer<DiegesisBuffers>> PENDING_OUTLINES = new ArrayList<>();
     /** Outlines of nodes that show only what is seen of them ({@code NodeView.setOutlineSeenOnly}): drawn against the depth. */
-    private static final List<Consumer<MultiBufferSource>> PENDING_SEEN_OUTLINES = new ArrayList<>();
+    private static final List<Consumer<DiegesisBuffers>> PENDING_SEEN_OUTLINES = new ArrayList<>();
     private static int outlineColor = 0xFFFFFF;
     /** Thickness of the board under a laid-out inventory, in pixels. */
     private static final float BOARD_THICKNESS = 1.0F;
@@ -144,29 +142,64 @@ public final class SceneRenderer {
     private SceneRenderer() {
     }
 
-    /**
-     * Called by the loader's level-render hook after the entities.
-     *
-     * @param poseStack  the level pose stack: relative to the camera, not turned to it (the view rotation is in the model-view
-     *                   matrix the buffers are drawn with)
-     * @param modelView  the frame's view matrix: the camera's rotation
-     * @param projection the frame's projection matrix
-     */
+    public static SubmitNodeCollector currentCollector() {
+        return collecting;
+    }
+
+    /** Called during {@code GameRenderer.extract} on Minecraft 26.3 to build the frame's scene submits. */
+    public static void extract() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) {
+            return;
+        }
+        LevelRenderState state = mc.gameRenderer.gameRenderState().levelRenderState;
+        Camera camera = mc.gameRenderer.mainCamera();
+        Matrix4f modelView = new Matrix4f(state.cameraRenderState.viewRotationMatrix);
+        Matrix4f projection = new Matrix4f(state.cameraRenderState.projectionMatrix);
+        ClearView.begin(modelView, camera);
+        collecting = new SubmitNodeStorage();
+        collecting.setUseImprovedTransparency(mc.gameRenderer.useImprovedTransparency());
+        try {
+            render(new PoseStack(), modelView, projection, camera);
+            ((SceneFrameAccess) state).diegesis$setScene(collecting);
+        } finally {
+            collecting = null;
+            sceneBuffers = null;
+            clearBuffers = null;
+            sceneSource = null;
+        }
+    }
+
+    /** Called during {@code LevelRenderer.submitFeatures} on Minecraft 26.3 to append extracted submits. */
+    @SuppressWarnings("unchecked")
+    public static void append(LevelRenderState state, SubmitNodeStorage world) {
+        SubmitNodeStorage scene = ((SceneFrameAccess) state).diegesis$getScene();
+        if (scene == null) {
+            return;
+        }
+        scene.getSubmitsPerOrder().forEach((order, source) -> {
+            var target = world.order(order);
+            for (int i = 0; i < source.allPhases().size(); i++) {
+                FeatureRenderPhase<SubmitNode> phase = (FeatureRenderPhase<SubmitNode>) target.allPhases().get(i);
+                source.allPhases().get(i).sortInto((node, ordered) -> phase.submit(node));
+            }
+        });
+        scene.seeThrough().sortInto((node, ordered) -> world.seeThrough().submit((TranslucentSubmit) node));
+        ((SceneFrameAccess) state).diegesis$setScene(null);
+    }
+
     public static void render(PoseStack poseStack, Matrix4f modelView, Matrix4f projection, Camera camera) {
         try {
             renderStations(poseStack, modelView, projection, camera);
         } finally {
-            // After every station's frame: the blocks their scenes now stand in for are left out of the next frame's chunks.
             com.pockyl.diegesis.impl.client.HiddenBlocks.frame();
             ClientStations.get().syncHiddenBlocks();
         }
     }
 
     private static void renderStations(PoseStack poseStack, Matrix4f modelView, Matrix4f projection, Camera camera) {
-        // Counts a frame left undrawn (its later stage never came) must not pile up.
         PENDING_COUNTS.clear();
-        Projector.capture(projection, new Matrix4f(modelView).mul(poseStack.last().pose()), camera.getPosition());
-        // The level pose is not turned to the camera here: turning it back to the world only undoes what it holds.
+        Projector.capture(projection, new Matrix4f(modelView).mul(poseStack.last().pose()), camera.position());
         TO_WORLD.set(poseStack.last().pose()).invert();
         SmoothPass.begin(projection, modelView);
         long now = Util.getNanos();
@@ -175,13 +208,13 @@ public final class SceneRenderer {
 
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
-        if (level == null) {
+        if (level == null || collecting == null) {
             return;
         }
         if (FocusController.get().isInteractive()) {
             FocusInput.get().frameFromRenderer();
         }
-        Vec3 cameraPos = camera.getPosition();
+        Vec3 cameraPos = camera.position();
         debugCamera = camera;
         debugPose = new PoseStack();
         debugPose.last().pose().set(poseStack.last().pose());
@@ -190,22 +223,13 @@ public final class SceneRenderer {
         if (stations.isEmpty()) {
             return;
         }
-        if (clearBuffers == null) {
-            clearBuffers = MultiBufferSource.immediate(new ByteBufferBuilder(1 << 16));
-            SequencedMap<RenderType, ByteBufferBuilder> kept = new LinkedHashMap<>();
-            // The see-through item sheet is never drawn into here (CLEAR takes it), only kept: see KeptTypes.
-            for (RenderType type : List.of(RenderType.cutout(), Sheets.cutoutBlockSheet(), OVERLAY, ITEMS, SceneParticles.TYPE,
-                    Sheets.translucentCullBlockSheet())) {
-                kept.put(type, new ByteBufferBuilder(1 << 16));
-            }
-            sceneBuffers = MultiBufferSource.immediateWithBuffers(kept, new ByteBufferBuilder(1 << 16));
-        }
-        RenderType translucent = Sheets.translucentCullBlockSheet();
-        MultiBufferSource scene = type -> {
+        sceneBuffers = new DiegesisBuffers.BufferSource(collecting);
+        clearBuffers = new DiegesisBuffers.BufferSource(collecting);
+        RenderType translucent = Sheets.translucentBlockItemSheet();
+        DiegesisBuffers scene = type -> {
             if (type != translucent) {
                 return sceneBuffers.getBuffer(type);
             }
-            KeptTypes.keep(sceneBuffers, translucent);
             return clearBuffers.getBuffer(CLEAR);
         };
         sceneSource = scene;
@@ -214,8 +238,6 @@ public final class SceneRenderer {
             if (!isDrawn(station, cameraPos)) {
                 continue;
             }
-            // Each station draws on its own copy of the pose stack: a failure halfway can never leave the level's stack
-            // unbalanced (the game checks it and crashes).
             PoseStack own = new PoseStack();
             own.last().pose().set(poseStack.last().pose());
             own.last().normal().set(poseStack.last().normal());
@@ -225,80 +247,20 @@ public final class SceneRenderer {
                 DiegesisMod.LOGGER.error("Drawing station {} at {} failed", station.type().id(), station.pos(), e);
             }
         }
-        // Opaque parts first: wells, highlights and shadows lie on them and must not hide them from the depth test. Then what
-        // is see-through, which nothing drawn later may cross; particles last, so that a thick liquid does not bury them.
-        sceneBuffers.endLastBatch();
-        sceneBuffers.endBatch(RenderType.cutout());
-        sceneBuffers.endBatch(Sheets.cutoutBlockSheet());
+        sceneBuffers.endBatch(RenderTypes.cutoutMovingBlock());
+        sceneBuffers.endBatch(Sheets.cutoutBlockItemSheet());
         sceneBuffers.endBatch(OVERLAY);
+        sceneBuffers.endBatch(ITEM_OVERLAY);
         sceneBuffers.endBatch(ITEMS);
         clearBuffers.endBatch();
         sceneBuffers.endBatch();
-        if (!PENDING_OUTLINES.isEmpty() || !PENDING_SEEN_OUTLINES.isEmpty()) {
-            try {
-                drawOutlines(minecraft);
-            } finally {
-                PENDING_OUTLINES.clear();
-                PENDING_SEEN_OUTLINES.clear();
-            }
-        }
-        // The counts wait for renderCounts: drawn here, block entities, translucent blocks and particles drawn later by the
-        // game would paint over them, as they do not write depth.
+        PENDING_OUTLINES.clear();
+        PENDING_SEEN_OUTLINES.clear();
+        flushCounts();
     }
 
-    /**
-     * Draws the counts that stand on top of everything (turned to the camera, or all with {@code counts_on_top}). Called
-     * after the level's particles: a chest or glass next to the station, drawn after the scene, never covers them, and
-     * neither does the outline round the item under the cursor.
-     */
     public static void renderCounts() {
-        if (sceneBuffers == null) {
-            PENDING_COUNTS.clear();
-            return;
-        }
-        flushCounts(sceneBuffers);
-    }
-
-    /**
-     * The outline round the usable object under the cursor: its silhouette goes into the game's entity outline target
-     * (the glowing effect's), the outline effect turns the silhouette into a line round its edge, and the game lays that
-     * over the frame as it does for glowing entities.
-     */
-    private static void drawOutlines(Minecraft minecraft) {
-        LevelRenderer levelRenderer = minecraft.levelRenderer;
-        PostChain effect = ((LevelRendererAccessor) levelRenderer).diegesis$entityEffect();
-        if (effect == null || levelRenderer.entityTarget() == null || minecraft.gameRenderer.isPanoramicMode()) {
-            return;
-        }
-        OutlineBufferSource outline = minecraft.renderBuffers().outlineBufferSource();
-        outline.setColor(outlineColor >> 16 & 0xFF, outlineColor >> 8 & 0xFF, outlineColor & 0xFF, 0xFF);
-        // Only the silhouette: every render type is swapped for its outline type; what has none (glints) is dropped.
-        MultiBufferSource silhouettes = type -> {
-            KeptTypes.keep(sceneBuffers, type);
-            return type.outline().map(outline::getBuffer).orElse(NoVertices.INSTANCE);
-        };
-        for (Consumer<MultiBufferSource> draw : PENDING_OUTLINES) {
-            draw.accept(silhouettes);
-        }
-        outline.endOutlineBatch();
-        sceneBuffers.endBatch();
-        if (!PENDING_SEEN_OUTLINES.isEmpty()) {
-            // What is seen only: the frame's depth into the outline target, and the silhouette tested against it, so that what
-            // stands in front of the node cuts its silhouette. A shader pack draws the frame elsewhere: the whole silhouette then.
-            boolean tested = !ShaderShadows.packInUse();
-            if (tested) {
-                levelRenderer.entityTarget().copyDepthFrom(minecraft.getMainRenderTarget());
-                RenderSystem.enableDepthTest();
-                RenderSystem.depthFunc(GL11.GL_LEQUAL);
-            }
-            for (Consumer<MultiBufferSource> draw : PENDING_SEEN_OUTLINES) {
-                draw.accept(silhouettes);
-            }
-            outline.endOutlineBatch();
-            sceneBuffers.endBatch();
-        }
-        effect.process(minecraft.getTimer().getGameTimeDeltaTicks());
-        minecraft.getMainRenderTarget().bindWrite(false);
+        flushCounts();
     }
 
     /** Whether the player can do something with a node: carry it, operate it, click it, put or take an item. */
@@ -332,7 +294,7 @@ public final class SceneRenderer {
         return station.scene() != null && station.center().distanceToSqr(camera) <= RENDER_RANGE * RENDER_RANGE;
     }
 
-    private static void renderStation(ClientStation station, PoseStack poseStack, Vec3 camera, MultiBufferSource buffers,
+    private static void renderStation(ClientStation station, PoseStack poseStack, Vec3 camera, DiegesisBuffers buffers,
             ClientLevel level) {
         drawnPos = station.pos();
         BlockPos pos = station.pos();
@@ -349,7 +311,7 @@ public final class SceneRenderer {
         FocusInput input = FocusInput.get();
         FocusInput.Carried carried = local ? input.carried() : null;
         float workPlane = scene.definition().workPlane();
-        MultiBufferSource shadows = new ShadowBuffers(buffers);
+        DiegesisBuffers shadows = new ShadowBuffers(buffers);
         List<float[]> lights = lightsOf(scene);
         drawnLights = lights.isEmpty() ? null : lights;
         // Surfaces that are moved (a door's shelves) are not where the placing writes them: they hide no light.
@@ -392,15 +354,15 @@ public final class SceneRenderer {
             if (pointedAt || local && ui.hoverOutline() && (input.pourTarget() == node || node.isOutlined())) {
                 outlineColor = ui.outlineColor();
                 PoseStack at = snapshot(poseStack);
-                List<Consumer<MultiBufferSource>> pending = node.isOutlineSeenOnly() ? PENDING_SEEN_OUTLINES : PENDING_OUTLINES;
+                List<Consumer<DiegesisBuffers>> pending = node.isOutlineSeenOnly() ? PENDING_SEEN_OUTLINES : PENDING_OUTLINES;
                 node.visual().ifPresent(visual -> pending.add(target -> renderVisual(visual, 0xFFFFFFFF, at, target,
-                        LightTexture.FULL_BRIGHT, level)));
+                        LightCoordsUtil.FULL_BRIGHT, level)));
                 definition.slot().ifPresent(slot -> pending.add(target -> renderSlotItem(station.state().getItem(slot.slot()),
-                        slot.display(), slot.shownItemSize(), slot.slot().index(), station.age(), at, target, LightTexture.FULL_BRIGHT,
+                        slot.display(), slot.shownItemSize(), slot.slot().index(), station.age(), at, target, LightCoordsUtil.FULL_BRIGHT,
                         level)));
                 definition.output().ifPresent(output -> pending.add(target -> renderSlotItem(
                         station.state().getOutput(output.output()), output.display(), output.size(), 0, station.age(), at, target,
-                        LightTexture.FULL_BRIGHT, level)));
+                        LightCoordsUtil.FULL_BRIGHT, level)));
             }
             boolean overAll = local && node.isOnTop() && SmoothPass.defer(overEverything(node, level), poseStack, nodeLight);
             if (!overAll) {
@@ -436,7 +398,7 @@ public final class SceneRenderer {
             definition.output().ifPresent(output -> {
                 ItemStack stack = station.state().getOutput(output.output());
                 renderSlotItem(stack, output.display(), output.size(), 0, station.age(), poseStack, buffers,
-                        local && node.isHovered() ? LightTexture.FULL_BRIGHT : light, level);
+                        local && node.isHovered() ? LightCoordsUtil.FULL_BRIGHT : light, level);
                 renderCount(poseStack, buffers, stack, output.size(), output.countFacing());
             });
             poseStack.popPose();
@@ -483,14 +445,14 @@ public final class SceneRenderer {
         if ((!station.particles().isEmpty() || !station.pourStreams().isEmpty()) && debugCamera != null) {
             Matrix4f toStation = new Matrix4f(station.blockToWorld(new Matrix4d()).setTranslation(0.0, 0.0, 0.0))
                     .mul(station.stationToWorld(new Matrix4f())).invert();
-            Vector3f right = toStation.transformDirection(new Vector3f(debugCamera.getLeftVector()).negate()).normalize();
-            Vector3f up = toStation.transformDirection(new Vector3f(debugCamera.getUpVector())).normalize();
-            Vector3f view = toStation.transformDirection(new Vector3f(debugCamera.getLookVector())).normalize();
+            Vector3f right = toStation.transformDirection(new Vector3f(debugCamera.leftVector()).negate()).normalize();
+            Vector3f up = toStation.transformDirection(new Vector3f(debugCamera.upVector())).normalize();
+            Vector3f view = toStation.transformDirection(new Vector3f(debugCamera.forwardVector())).normalize();
             if (scene.definition().pouring().stream()) {
                 float width = scene.definition().pouring().streamWidth();
                 boolean deferred = local && station.pourStreams().anyOverAll() && SmoothPass.defer(new NodePainter() {
                     @Override
-                    public void paint(PoseStack pose, MultiBufferSource target, int packedLight) {
+                    public void paint(PoseStack pose, DiegesisBuffers target, int packedLight) {
                         station.pourStreams().render(pose, target, view, packedLight, width, true);
                     }
 
@@ -513,8 +475,8 @@ public final class SceneRenderer {
     }
 
     /** An item standing freely: as it is, with an outline under the cursor and its shape falling on what it stands on. */
-    private static void renderPlaced(NodeInstance node, boolean outline, PoseStack poseStack, MultiBufferSource buffers,
-            MultiBufferSource shadows, int light, ClientLevel level) {
+    private static void renderPlaced(NodeInstance node, boolean outline, PoseStack poseStack, DiegesisBuffers buffers,
+            DiegesisBuffers shadows, int light, ClientLevel level) {
         PlacedItem item = node.placed();
         ItemStack stack = item.stack();
         PlacedShape shape = item.shape();
@@ -525,7 +487,7 @@ public final class SceneRenderer {
         if (outline && node.isHovered()) {
             outlineColor = ui.outlineColor();
             PoseStack at = snapshot(poseStack);
-            PENDING_OUTLINES.add(target -> shape.draw(stack, at, target, LightTexture.FULL_BRIGHT, level, seed));
+            PENDING_OUTLINES.add(target -> shape.draw(stack, at, target, LightCoordsUtil.FULL_BRIGHT, level, seed));
         }
         shape.draw(stack, poseStack, buffers, light, level, seed);
         poseStack.popPose();
@@ -551,7 +513,7 @@ public final class SceneRenderer {
 
     /** The stack in the hand, see-through, where it would stand; the place comes from the cursor, the look from the turn it has. */
     private static void renderPreview(FocusInput.Carried carried, SceneInstance scene, PlacingOptions options, PoseStack poseStack,
-            MultiBufferSource buffers, MultiBufferSource shadows, int light, ClientLevel level) {
+            DiegesisBuffers buffers, DiegesisBuffers shadows, int light, ClientLevel level) {
         ItemPose pose = carried.preview();
         ItemStack stack = carried.stack();
         PlacedShape shape = PlacedShape.of(stack, level, options.blockModels(), options.framePose());
@@ -565,14 +527,11 @@ public final class SceneRenderer {
         }
         Matrix4f matrix = new Matrix4f().translation(at.x(), at.y(), at.z()).rotate(new org.joml.Quaternionf(pose.rotation()))
                 .scale(shape.modelScale(pose.scale() * options.itemSize()));
-        MultiBufferSource ghost = type -> {
+        DiegesisBuffers ghost = type -> {
             if (!isBlockSheet(type)) {
                 return buffers.getBuffer(type);
             }
-            if (type != Sheets.translucentCullBlockSheet()) {
-                KeptTypes.keep(buffers, type);
-            }
-            return new TintedConsumer(buffers.getBuffer(Sheets.translucentCullBlockSheet()), options.previewColor());
+            return new TintedConsumer(buffers.getBuffer(Sheets.translucentBlockItemSheet()), options.previewColor());
         };
         poseStack.pushPose();
         multiply(poseStack, matrix);
@@ -590,25 +549,37 @@ public final class SceneRenderer {
     }
 
     private static boolean isBlockSheet(RenderType type) {
-        return type == Sheets.cutoutBlockSheet() || type == Sheets.translucentCullBlockSheet() || type == Sheets.translucentItemSheet()
-                || type == Sheets.solidBlockSheet();
+        return type == Sheets.cutoutBlockItemSheet() || type == Sheets.translucentBlockItemSheet() || type == Sheets.translucentItemSheet()
+                || type == Sheets.cutoutItemSheet();
     }
 
-    private static void renderVisual(Visual visual, int tint, PoseStack poseStack, MultiBufferSource buffers, int light, ClientLevel level) {
+    private static boolean isItemSheet(RenderType type) {
+        if (type == null) {
+            return false;
+        }
+        if (type == Sheets.translucentItemSheet() || type == Sheets.cutoutItemSheet()
+                || type == Sheets.translucentItemGlintSheet() || type == Sheets.cutoutItemGlintSheet()
+                || type == Sheets.translucentItemGlintSpecialSheet() || type == Sheets.cutoutItemGlintSpecialSheet()) {
+            return true;
+        }
+        String s = type.toString();
+        return s.contains("item_") || s.contains("textures/atlas/items.png");
+    }
+
+    private static void renderVisual(Visual visual, int tint, PoseStack poseStack, DiegesisBuffers buffers, int light, ClientLevel level) {
         Minecraft minecraft = Minecraft.getInstance();
-        int packedLight = visual.emissive() ? LightTexture.FULL_BRIGHT : light;
+        int packedLight = visual.emissive() ? LightCoordsUtil.FULL_BRIGHT : light;
         Vector3fc anchor = visual.anchor();
         if ((tint >>> 24) == 0) {
             return;
         }
         poseStack.pushPose();
         if (visual.item().isPresent()) {
-            // The item renderer takes no tint: a tinted item (one offered see-through) is drawn through tinting buffers.
             poseStack.translate(8.0F - anchor.x(), 8.0F - anchor.y(), 8.0F - anchor.z());
             poseStack.scale(16.0F, 16.0F, 16.0F);
-            MultiBufferSource drawn = tint == Visual.WHITE ? solidItems(buffers)
+            DiegesisBuffers drawn = tint == Visual.WHITE ? solidItems(buffers)
                     : com.pockyl.diegesis.api.client.DiegesisClient.tinted((tint >>> 24) == 0xFF ? solidItems(buffers) : buffers, tint);
-            minecraft.getItemRenderer().renderStatic(new ItemStack(visual.item().get()), ItemDisplayContext.FIXED, packedLight,
+            ItemModels26.renderStatic(new ItemStack(visual.item().get()), ItemDisplayContext.FIXED, packedLight,
                     OverlayTexture.NO_OVERLAY, poseStack, drawn, level, 0);
             poseStack.popPose();
             return;
@@ -618,16 +589,16 @@ public final class SceneRenderer {
             poseStack.popPose();
             return;
         }
-        BakedModel model;
+        BlockStateModel model;
         BlockState state = visual.block().orElse(null);
         boolean translucent = visual.translucent() || (tint >>> 24) < 0xFF;
         if (state != null) {
-            model = minecraft.getBlockRenderer().getBlockModel(state);
-            translucent |= ItemBlockRenderTypes.getChunkRenderType(state) == RenderType.translucent();
+            model = minecraft.getModelManager().getBlockStateModelSet().get(state);
+            translucent |= model.hasMaterialFlag(BakedQuad.FLAG_TRANSLUCENT);
         } else {
-            ResourceLocation id = visual.model().orElseThrow();
+            Identifier id = visual.model().orElseThrow();
             model = ClientPlatform.INSTANCE.getModel(id);
-            if (model == minecraft.getModelManager().getMissingModel() && WARNED_MODELS.add(id)) {
+            if (model == minecraft.getModelManager().getBlockStateModelSet().missingModel() && WARNED_MODELS.add(id)) {
                 DiegesisMod.LOGGER.warn("Scene model {} is not loaded: put it under models/diegesis/ or register it with"
                         + " DiegesisClient.registerModel", id);
             }
@@ -635,10 +606,8 @@ public final class SceneRenderer {
         poseStack.translate(-anchor.x(), -anchor.y(), -anchor.z());
         poseStack.scale(16.0F, 16.0F, 16.0F);
         if (visual.litAsBlock() && !translucent && drawnPos != null && level != null) {
-            // The way the chunks draw the block itself, from a chunk render type, so that the copy looks the same.
-            VertexConsumer lit = buffers.getBuffer(RenderType.cutout());
+            VertexConsumer lit = buffers.getBuffer(RenderTypes.cutoutMovingBlock());
             if (drawnLights != null) {
-                // The scene's own lights (a lantern on a shelf) brighten the walls and boards around them.
                 lit = new SceneLitConsumer(lit, TO_STATION, NORMAL_TO_STATION, drawnLights, drawnSurfaces);
             }
             BlockLit.draw(model, state != null ? state : level.getBlockState(drawnPos), drawnPos, poseStack,
@@ -646,26 +615,24 @@ public final class SceneRenderer {
             poseStack.popPose();
             return;
         }
-        VertexConsumer consumer = buffers.getBuffer(translucent ? Sheets.translucentCullBlockSheet() : Sheets.cutoutBlockSheet());
+        VertexConsumer consumer = buffers.getBuffer(translucent ? Sheets.translucentBlockItemSheet() : Sheets.cutoutBlockItemSheet());
         if (tint != Visual.WHITE) {
             consumer = new TintedConsumer(consumer, tint);
         }
         if (visual.glass() > 0.0F) {
             consumer = new GlassConsumer(consumer, visual.glass());
         }
-        minecraft.getBlockRenderer().getModelRenderer().renderModel(poseStack.last(), consumer, state, model, 1.0F, 1.0F, 1.0F,
-                packedLight, OverlayTexture.NO_OVERLAY);
+        ItemModels26.renderBlockModel(poseStack.last(), consumer, state, model, 1.0F, 1.0F, 1.0F, packedLight, OverlayTexture.NO_OVERLAY);
         if (visual.doubleSided()) {
-            // The same quads turned round, in the same render type: an open glass shows its far walls from inside.
-            minecraft.getBlockRenderer().getModelRenderer().renderModel(poseStack.last(), new BackFaceConsumer(consumer), state, model, 1.0F,
-                    1.0F, 1.0F, packedLight, OverlayTexture.NO_OVERLAY);
+            ItemModels26.renderBlockModel(poseStack.last(), new BackFaceConsumer(consumer), state, model, 1.0F, 1.0F, 1.0F, packedLight,
+                    OverlayTexture.NO_OVERLAY);
         }
         poseStack.popPose();
     }
 
     /** A shape made by code: like a mesh, its texture from the node. */
     /** The liquid in a node's tank, and what floats on it; the pose stack is at the node. */
-    private static void renderTank(NodeInstance node, TankBinding binding, PoseStack poseStack, MultiBufferSource buffers, int light) {
+    private static void renderTank(NodeInstance node, TankBinding binding, PoseStack poseStack, DiegesisBuffers buffers, int light) {
         // The world's up (tipped by sloshing) as the node sees it: the liquid's surface stays level.
         Vector3fc slosh = node.liquid().slosh();
         Matrix4f toNode = node.matrix().invert(new Matrix4f());
@@ -684,7 +651,7 @@ public final class SceneRenderer {
     private static NodePainter overEverything(NodeInstance node, ClientLevel level) {
         return new NodePainter() {
             @Override
-            public void paint(PoseStack poseStack, MultiBufferSource buffers, int light) {
+            public void paint(PoseStack poseStack, DiegesisBuffers buffers, int light) {
                 node.visual().ifPresent(visual -> renderVisual(visual, node.tint(), poseStack, buffers, light, level));
                 if (node.shape() != null) {
                     renderShape(node, poseStack, buffers, light);
@@ -699,18 +666,31 @@ public final class SceneRenderer {
         };
     }
 
-    private static void renderShape(NodeInstance node, PoseStack poseStack, MultiBufferSource buffers, int light) {
-        var sprite = Minecraft.getInstance().getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS).apply(node.shapeTexture());
-        VertexConsumer consumer = buffers.getBuffer((node.tint() >>> 24) < 0xFF ? Sheets.translucentCullBlockSheet() : Sheets.cutoutBlockSheet());
+    private static void renderShape(NodeInstance node, PoseStack poseStack, DiegesisBuffers buffers, int light) {
+        var atlasManager = Minecraft.getInstance().getAtlasManager();
+        var sprite = atlasManager.getAtlasOrThrow(AtlasIds.BLOCKS).getSprite(node.shapeTexture());
+        boolean itemAtlas = false;
+        if (sprite.contents().name().equals(net.minecraft.client.renderer.texture.MissingTextureAtlasSprite.getLocation())) {
+            var itemSprite = atlasManager.getAtlasOrThrow(AtlasIds.ITEMS).getSprite(node.shapeTexture());
+            if (!itemSprite.contents().name().equals(net.minecraft.client.renderer.texture.MissingTextureAtlasSprite.getLocation())) {
+                sprite = itemSprite;
+                itemAtlas = true;
+            }
+        }
+        boolean translucent = (node.tint() >>> 24) < 0xFF;
+        RenderType type = itemAtlas
+                ? (translucent ? Sheets.translucentItemSheet() : Sheets.cutoutItemSheet())
+                : (translucent ? Sheets.translucentBlockItemSheet() : Sheets.cutoutBlockItemSheet());
+        VertexConsumer consumer = buffers.getBuffer(type);
         if (node.tint() != Visual.WHITE) {
             consumer = new TintedConsumer(consumer, node.tint());
         }
-        node.shape().mesh().draw(poseStack.last(), consumer, sprite, node.shapeGlows() ? LightTexture.FULL_BRIGHT : light);
+        node.shape().mesh().draw(poseStack.last(), consumer, sprite, node.shapeGlows() ? LightCoordsUtil.FULL_BRIGHT : light);
     }
 
     /** A polygon model: the same render types and wrappers as a block model, its corners written directly. */
-    private static void renderMesh(Visual visual, int tint, PoseStack poseStack, MultiBufferSource buffers, int light) {
-        ResourceLocation id = visual.mesh().orElseThrow();
+    private static void renderMesh(Visual visual, int tint, PoseStack poseStack, DiegesisBuffers buffers, int light) {
+        Identifier id = visual.mesh().orElseThrow();
         com.pockyl.diegesis.impl.client.mesh.Mesh mesh = com.pockyl.diegesis.impl.client.mesh.MeshLibrary.INSTANCE.mesh(id);
         if (mesh == null) {
             if (WARNED_MODELS.add(id)) {
@@ -721,14 +701,27 @@ public final class SceneRenderer {
         Vector3fc anchor = visual.anchor();
         poseStack.translate(-anchor.x(), -anchor.y(), -anchor.z());
         boolean translucent = visual.translucent() || (tint >>> 24) < 0xFF;
-        VertexConsumer consumer = buffers.getBuffer(translucent ? Sheets.translucentCullBlockSheet() : Sheets.cutoutBlockSheet());
+        Identifier tex = visual.texture().orElseThrow();
+        var atlasManager = Minecraft.getInstance().getAtlasManager();
+        var sprite = atlasManager.getAtlasOrThrow(AtlasIds.BLOCKS).getSprite(tex);
+        boolean itemAtlas = false;
+        if (sprite.contents().name().equals(net.minecraft.client.renderer.texture.MissingTextureAtlasSprite.getLocation())) {
+            var itemSprite = atlasManager.getAtlasOrThrow(AtlasIds.ITEMS).getSprite(tex);
+            if (!itemSprite.contents().name().equals(net.minecraft.client.renderer.texture.MissingTextureAtlasSprite.getLocation())) {
+                sprite = itemSprite;
+                itemAtlas = true;
+            }
+        }
+        RenderType type = itemAtlas
+                ? (translucent ? Sheets.translucentItemSheet() : Sheets.cutoutItemSheet())
+                : (translucent ? Sheets.translucentBlockItemSheet() : Sheets.cutoutBlockItemSheet());
+        VertexConsumer consumer = buffers.getBuffer(type);
         if (tint != Visual.WHITE) {
             consumer = new TintedConsumer(consumer, tint);
         }
         if (visual.glass() > 0.0F) {
             consumer = new GlassConsumer(consumer, visual.glass());
         }
-        var sprite = Minecraft.getInstance().getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS).apply(visual.texture().orElseThrow());
         mesh.draw(poseStack.last(), consumer, sprite, light);
         if (visual.doubleSided()) {
             mesh.draw(poseStack.last(), new BackFaceConsumer(consumer), sprite, light);
@@ -739,7 +732,7 @@ public final class SceneRenderer {
      * While a vessel with liquid is in the hand, a soft mark on the opening of every tank that would take it, breathing
      * slowly; the one it points at is marked solidly.
      */
-    private static void renderPourHints(SceneInstance scene, FocusInput input, PoseStack poseStack, MultiBufferSource buffers) {
+    private static void renderPourHints(SceneInstance scene, FocusInput input, PoseStack poseStack, DiegesisBuffers buffers) {
         PourOptions options = scene.definition().pouring();
         List<NodeInstance> candidates = input.pourCandidates();
         if (!options.hints() || candidates.isEmpty()) {
@@ -764,7 +757,7 @@ public final class SceneRenderer {
      * The player's inventory laid out in the scene: a board, a sunken well per slot, the items lying in them with their
      * counts, and the vanilla highlight on the slot under the cursor.
      */
-    private static void renderInventory(SceneInstance scene, FocusInput input, PoseStack poseStack, MultiBufferSource buffers,
+    private static void renderInventory(SceneInstance scene, FocusInput input, PoseStack poseStack, DiegesisBuffers buffers,
             int light, ClientLevel level) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) {
@@ -778,8 +771,8 @@ public final class SceneRenderer {
             float depth = layout.boardDepth();
             poseStack.translate(-width / 2.0F, -BOARD_THICKNESS, -depth / 2.0F);
             poseStack.scale(width, BOARD_THICKNESS, depth);
-            minecraft.getBlockRenderer().getModelRenderer().renderModel(poseStack.last(), buffers.getBuffer(Sheets.cutoutBlockSheet()),
-                    surface, minecraft.getBlockRenderer().getBlockModel(surface), 1.0F, 1.0F, 1.0F, light, OverlayTexture.NO_OVERLAY);
+            ItemModels26.renderBlockModel(poseStack.last(), buffers.getBuffer(Sheets.cutoutBlockItemSheet()),
+                    surface, minecraft.getModelManager().getBlockStateModelSet().get(surface), 1.0F, 1.0F, 1.0F, light, OverlayTexture.NO_OVERLAY);
             poseStack.popPose();
         });
         float well = layout.spacing() * 0.86F;
@@ -814,11 +807,11 @@ public final class SceneRenderer {
      * A stack's count lying on the surface in the slot's near right corner (as the player sees it), like the number in
      * a vanilla slot. Nothing for single items.
      */
-    private static void renderCount(PoseStack poseStack, MultiBufferSource buffers, ItemStack stack, float slotSize) {
+    private static void renderCount(PoseStack poseStack, DiegesisBuffers buffers, ItemStack stack, float slotSize) {
         renderCount(poseStack, buffers, stack, slotSize, false);
     }
 
-    private static void renderCount(PoseStack poseStack, MultiBufferSource buffers, ItemStack stack, float slotSize, boolean standing) {
+    private static void renderCount(PoseStack poseStack, DiegesisBuffers buffers, ItemStack stack, float slotSize, boolean standing) {
         if (stack.isEmpty() || stack.getCount() <= 1) {
             return;
         }
@@ -826,7 +819,7 @@ public final class SceneRenderer {
     }
 
     /** A count facing as a slot or output asks: lying, standing at the front, or turned to the camera. */
-    private static void renderCount(PoseStack poseStack, MultiBufferSource buffers, ItemStack stack, float slotSize,
+    private static void renderCount(PoseStack poseStack, DiegesisBuffers buffers, ItemStack stack, float slotSize,
             SlotBinding.CountFacing facing) {
         if (stack.isEmpty() || stack.getCount() <= 1) {
             return;
@@ -835,12 +828,12 @@ public final class SceneRenderer {
                 facing == SlotBinding.CountFacing.CAMERA);
     }
 
-    private static void renderCount(PoseStack poseStack, MultiBufferSource buffers, String text, float slotSize) {
+    private static void renderCount(PoseStack poseStack, DiegesisBuffers buffers, String text, float slotSize) {
         renderCount(poseStack, buffers, text, slotSize, false);
     }
 
     /** A count at the slot's near right corner: lying on the slot, or {@code standing} at the item's foot, facing the front. */
-    private static void renderCount(PoseStack poseStack, MultiBufferSource buffers, String text, float slotSize, boolean standing) {
+    private static void renderCount(PoseStack poseStack, DiegesisBuffers buffers, String text, float slotSize, boolean standing) {
         renderCount(poseStack, buffers, text, slotSize, standing, -1.0F);
     }
 
@@ -848,12 +841,12 @@ public final class SceneRenderer {
      * @param outside with {@code standing}, pixels to the player's right of the middle where the number begins: it stands beside the
      *                item, not over it; negative ends it at the slot's right side
      */
-    private static void renderCount(PoseStack poseStack, MultiBufferSource buffers, String text, float slotSize, boolean standing, float outside) {
+    private static void renderCount(PoseStack poseStack, DiegesisBuffers buffers, String text, float slotSize, boolean standing, float outside) {
         renderCount(poseStack, buffers, text, slotSize, standing, outside, false);
     }
 
     /** @param camera standing at the item's foot as {@code standing} puts it, but turned to the camera */
-    private static void renderCount(PoseStack poseStack, MultiBufferSource buffers, String text, float slotSize, boolean standing, float outside,
+    private static void renderCount(PoseStack poseStack, DiegesisBuffers buffers, String text, float slotSize, boolean standing, float outside,
             boolean camera) {
         if (!ui.showCounts()) {
             return;
@@ -885,7 +878,7 @@ public final class SceneRenderer {
             if (distance > 1.0E-4F) {
                 at.mul(Math.max(0.0F, distance - slotSize * 0.75F * unit) / distance);
             }
-            matrix = new Matrix4f().translation(at).rotate(Minecraft.getInstance().gameRenderer.getMainCamera().rotation())
+            matrix = new Matrix4f().translation(at).rotate(Minecraft.getInstance().gameRenderer.mainCamera().rotation())
                     .scale(scale * unit, -scale * unit, scale * unit);
         }
         float x = -font.width(text) + 0.5F;
@@ -895,33 +888,35 @@ public final class SceneRenderer {
         Matrix4f front = new Matrix4f(matrix).translate(0.0F, 0.0F, 0.4F);
         poseStack.popPose();
         if (ui.countsOnTop() || camera) {
-            // Drawn after everything else, without the depth test: an item's model can never cover its number. A number turned
-            // to the camera always is: it stands beside a floating, turning result, which cut into it whatever its distance.
             PENDING_COUNTS.add(new Count(text, x, y, shadow, front));
             return;
         }
-        font.drawInBatch(text, x, y, 0xFF3F3F3F, false, shadow, buffers, Font.DisplayMode.NORMAL, 0, LightTexture.FULL_BRIGHT);
-        font.drawInBatch(text, x, y, 0xFFFFFFFF, false, front, buffers, Font.DisplayMode.NORMAL, 0, LightTexture.FULL_BRIGHT);
+        submitText(text, x, y, 0xFF3F3F3F, shadow, Font.DisplayMode.NORMAL);
+        submitText(text, x, y, 0xFFFFFFFF, front, Font.DisplayMode.NORMAL);
+    }
+
+    private static void submitText(String text, float x, float y, int color, Matrix4f matrix, Font.DisplayMode mode) {
+        if (collecting == null) {
+            return;
+        }
+        PoseStack pose = new PoseStack();
+        pose.mulPose(matrix);
+        collecting.submitText(pose, x, y, Component.literal(text).getVisualOrderText(), false, mode, LightCoordsUtil.FULL_BRIGHT, color, 0, 0);
     }
 
     /** Draws the counts collected this frame on top of the finished scene. */
-    private static void flushCounts(MultiBufferSource.BufferSource buffers) {
-        if (PENDING_COUNTS.isEmpty()) {
+    private static void flushCounts() {
+        if (PENDING_COUNTS.isEmpty() || collecting == null) {
+            PENDING_COUNTS.clear();
             return;
         }
-        // Everything of this frame so far must be on screen first, or items drawn later would paint over the numbers.
-        buffers.endBatch();
-        Font font = Minecraft.getInstance().font;
         for (Count count : PENDING_COUNTS) {
-            font.drawInBatch(count.text(), count.x(), count.y(), 0xFF3F3F3F, false, count.shadow(), buffers,
-                    Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
+            submitText(count.text(), count.x(), count.y(), 0xFF3F3F3F, count.shadow(), Font.DisplayMode.SEE_THROUGH);
         }
         for (Count count : PENDING_COUNTS) {
-            font.drawInBatch(count.text(), count.x(), count.y(), 0xFFFFFFFF, false, count.front(), buffers,
-                    Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
+            submitText(count.text(), count.x(), count.y(), 0xFFFFFFFF, count.front(), Font.DisplayMode.SEE_THROUGH);
         }
         PENDING_COUNTS.clear();
-        buffers.endBatch();
     }
 
     /** A count waiting to be drawn on top: its text, position in font units and matrices. */
@@ -930,7 +925,7 @@ public final class SceneRenderer {
 
     /** An item in a slot: lying, standing or floating, with a small per-slot turn so a full grid looks placed by hand. */
     private static void renderSlotItem(ItemStack stack, SlotBinding.ItemDisplay display, float size, int index, float age,
-            PoseStack poseStack, MultiBufferSource buffers, int light, ClientLevel level) {
+            PoseStack poseStack, DiegesisBuffers buffers, int light, ClientLevel level) {
         if (stack.isEmpty()) {
             return;
         }
@@ -942,20 +937,20 @@ public final class SceneRenderer {
             case FLAT -> {
                 if (block) {
                     poseStack.translate(0.0F, size * 0.25F, 0.0F);
-                    poseStack.mulPose(Axis.YP.rotationDegrees(180.0F + jitter));
+                    poseStack.rotate(Axis.YP.rotationDegrees(180.0F + jitter));
                 } else {
                     poseStack.translate(0.0F, 0.07F, 0.0F);
-                    poseStack.mulPose(Axis.YP.rotationDegrees(180.0F + jitter));
-                    poseStack.mulPose(Axis.XP.rotationDegrees(-90.0F));
+                    poseStack.rotate(Axis.YP.rotationDegrees(180.0F + jitter));
+                    poseStack.rotate(Axis.XP.rotationDegrees(-90.0F));
                 }
             }
             case UPRIGHT -> {
                 poseStack.translate(0.0F, block ? size * 0.25F : size * 0.5F, 0.0F);
-                poseStack.mulPose(Axis.YP.rotationDegrees(180.0F));
+                poseStack.rotate(Axis.YP.rotationDegrees(180.0F));
             }
             case FLOATING -> {
                 poseStack.translate(0.0F, size * 0.55F + (float) Math.sin(age * 2.2F) * 0.35F, 0.0F);
-                poseStack.mulPose(Axis.YP.rotationDegrees(age * 40.0F));
+                poseStack.rotate(Axis.YP.rotationDegrees(age * 40.0F));
             }
             case HIDDEN -> {
                 poseStack.popPose();
@@ -963,38 +958,45 @@ public final class SceneRenderer {
             }
         }
         poseStack.scale(size, size, size);
-        minecraft.getItemRenderer().renderStatic(stack, ItemDisplayContext.FIXED, light, OverlayTexture.NO_OVERLAY, poseStack,
+        ItemModels26.renderStatic(stack, ItemDisplayContext.FIXED, light, OverlayTexture.NO_OVERLAY, poseStack,
                 solidItems(buffers), level, index);
         poseStack.popPose();
     }
 
     /** A stack on the cursor (or another player's), leaning as it moves, with its silhouette as a shadow below. */
     private static void renderCarried(ItemStack stack, Vector3fc at, Vector3fc lean, float size, PoseStack poseStack,
-            MultiBufferSource buffers, MultiBufferSource shadows, float workPlane, int light, ClientLevel level) {
+            DiegesisBuffers buffers, DiegesisBuffers shadows, float workPlane, int light, ClientLevel level) {
         boolean block = isBlockLike(stack, level);
         Runnable place = () -> {
             poseStack.translate(at.x(), at.y(), at.z());
-            poseStack.mulPose(Axis.XP.rotationDegrees(lean.x()));
-            poseStack.mulPose(Axis.ZP.rotationDegrees(lean.z()));
-            poseStack.mulPose(Axis.YP.rotationDegrees(180.0F));
+            poseStack.rotate(Axis.XP.rotationDegrees(lean.x()));
+            poseStack.rotate(Axis.ZP.rotationDegrees(lean.z()));
+            poseStack.rotate(Axis.YP.rotationDegrees(180.0F));
             if (!block) {
                 // Tipped towards the camera, so it reads as held above the table rather than lying on it.
-                poseStack.mulPose(Axis.XP.rotationDegrees(-62.0F));
+                poseStack.rotate(Axis.XP.rotationDegrees(-62.0F));
             }
             float scale = size * 1.08F;
             poseStack.scale(scale, scale, scale);
         };
         poseStack.pushPose();
         place.run();
-        Minecraft.getInstance().getItemRenderer().renderStatic(stack, ItemDisplayContext.FIXED, light, OverlayTexture.NO_OVERLAY,
+        ItemModels26.renderStatic(stack, ItemDisplayContext.FIXED, light, OverlayTexture.NO_OVERLAY,
                 poseStack, solidItems(buffers), level, 0);
         poseStack.popPose();
         ItemStack plain = new ItemStack(stack.getItem());
-        if (!Minecraft.getInstance().getItemRenderer().getModel(plain, level, null, 0).isCustomRenderer()) {
+        var plainState = ItemModels26.resolveItem(plain, ItemDisplayContext.FIXED, level, 0);
+        boolean isCustom = false;
+        for (int i = 0; i < plainState.activeLayerCount; i++) {
+            if (plainState.layers[i].specialRenderer != null) {
+                isCustom = true;
+                break;
+            }
+        }
+        if (!isCustom) {
             projectShadow(poseStack, workPlane, at.y() - workPlane, () -> {
                 place.run();
-                Minecraft.getInstance().getItemRenderer().renderStatic(plain, ItemDisplayContext.FIXED, light, OverlayTexture.NO_OVERLAY,
-                        poseStack, shadows, level, 0);
+                ItemModels26.renderState(plainState, poseStack, shadows, light, OverlayTexture.NO_OVERLAY);
             });
         }
     }
@@ -1024,15 +1026,15 @@ public final class SceneRenderer {
     }
 
     /** The highlight on a slot the cursor is on (strength 1) or a drag spreads over (weaker), like vanilla's. */
-    private static void renderHighlight(PoseStack poseStack, MultiBufferSource buffers, float size, float strength) {
+    private static void renderHighlight(PoseStack poseStack, DiegesisBuffers buffers, float size, float strength) {
         int color = ui.highlightColor();
         int alpha = Math.round((color >>> 24) * strength);
         renderSquare(poseStack, buffers, size, alpha << 24 | color & 0xFFFFFF);
     }
 
     /** A flat square of colour on the surface at the slot (wells, highlights). */
-    private static void renderSquare(PoseStack poseStack, MultiBufferSource buffers, float size, int argb) {
-        TextureAtlasSprite sprite = Minecraft.getInstance().getTextureAtlas(TextureAtlas.LOCATION_BLOCKS).apply(HIGHLIGHT_SPRITE);
+    private static void renderSquare(PoseStack poseStack, DiegesisBuffers buffers, float size, int argb) {
+        TextureAtlasSprite sprite = Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(AtlasIds.BLOCKS).getSprite(HIGHLIGHT_SPRITE);
         VertexConsumer consumer = buffers.getBuffer(OVERLAY);
         PoseStack.Pose pose = poseStack.last();
         float h = size / 2.0F;
@@ -1047,7 +1049,7 @@ public final class SceneRenderer {
     private static void vertex(VertexConsumer consumer, PoseStack.Pose pose, float x, float y, float z, float u, float v, int argb) {
         Vector3f point = pose.pose().transformPosition(new Vector3f(x, y, z));
         Vector3f normal = pose.normal().transform(new Vector3f(0.0F, 1.0F, 0.0F));
-        consumer.addVertex(point.x, point.y, point.z, argb, u, v, OverlayTexture.NO_OVERLAY, LightTexture.FULL_BRIGHT, normal.x, normal.y,
+        consumer.addVertex(point.x, point.y, point.z, argb, u, v, OverlayTexture.NO_OVERLAY, LightCoordsUtil.FULL_BRIGHT, normal.x, normal.y,
                 normal.z);
     }
 
@@ -1058,28 +1060,27 @@ public final class SceneRenderer {
      * Through these the type goes into {@link #ITEMS}, which writes depth as the game's item drawing does. Anything else (an
      * outline, a shadow, a see-through twin) keeps its own buffers.
      */
-    public static MultiBufferSource solidItems(MultiBufferSource buffers) {
+    public static DiegesisBuffers solidItems(DiegesisBuffers buffers) {
         if (buffers != sceneSource) {
             return buffers;
         }
         return type -> {
-            if (type != Sheets.translucentCullBlockSheet()) {
+            if (type != Sheets.translucentBlockItemSheet()) {
                 return buffers.getBuffer(type);
             }
-            KeptTypes.keep(sceneBuffers, type);
             return sceneBuffers.getBuffer(ITEMS);
         };
     }
 
     private static boolean isBlockLike(ItemStack stack, ClientLevel level) {
-        return Minecraft.getInstance().getItemRenderer().getModel(stack, level, null, 0).isGui3d();
+        return ItemModels26.resolveItem(stack, ItemDisplayContext.FIXED, level, 0).usesBlockLight();
     }
 
     /**
      * Light falling on the work surface under every light source: brighter and tighter the nearer the source is, wavering
      * with its flicker. Drawn so that it brightens the surface's own colours instead of laying a haze over them.
      */
-    private static void renderLightPools(SceneInstance scene, PoseStack poseStack, MultiBufferSource buffers, float workPlane) {
+    private static void renderLightPools(SceneInstance scene, PoseStack poseStack, DiegesisBuffers buffers, float workPlane) {
         for (NodeInstance node : scene.nodes()) {
             if (node.lightLevel() <= 0 || !node.isVisible() || node.definition().light().isEmpty()) {
                 continue;
@@ -1118,7 +1119,7 @@ public final class SceneRenderer {
 
     /** The same on the wall behind a surface: a warm patch round the source, within the room. */
     private static void renderWallPool(NodeInstance node, LightDefinition light, Vector3f at, float wall, PlaceSurface surface,
-            PoseStack poseStack, MultiBufferSource buffers) {
+            PoseStack poseStack, DiegesisBuffers buffers) {
         float distance = Math.max(0.0F, wall - at.z) / light.radius();
         if (distance >= 1.0F) {
             return;
@@ -1154,7 +1155,7 @@ public final class SceneRenderer {
 
     /** One pool of light at the height {@code plane}, cut off at the edges of {@code surface} (null: none). */
     private static void renderPool(NodeInstance node, LightDefinition light, Vector3f at, float plane, PlaceSurface surface,
-            PoseStack poseStack, MultiBufferSource buffers) {
+            PoseStack poseStack, DiegesisBuffers buffers) {
         float height = Math.max(0.0F, at.y - plane) / light.radius();
         if (height >= 1.0F) {
             return;
@@ -1218,10 +1219,11 @@ public final class SceneRenderer {
                     falloff = falloff * falloff * falloff;
                     int value = Math.round(falloff * 255.0F);
                     // The falloff goes into the colour (it multiplies the surface); opaque, so nothing is discarded.
-                    image.setPixelRGBA(x, y, 0xFF000000 | value << 16 | value << 8 | value);
+                    image.setPixel(x, y, 0xFF000000 | value << 16 | value << 8 | value);
                 }
             }
-            ResourceLocation texture = Minecraft.getInstance().getTextureManager().register("diegesis_light_pool", new DynamicTexture(image));
+            Identifier texture = DiegesisMod.id("dynamic/light_pool");
+            Minecraft.getInstance().getTextureManager().register(texture, new DynamicTexture(() -> "diegesis_light_pool", image));
             pool = DiegesisRenderTypes.lightPool(texture);
         }
         return pool;
@@ -1261,11 +1263,11 @@ public final class SceneRenderer {
 
     /** The light at the station: the brighter of the block itself and the space above it (a table top is lit from above). */
     private static int lightAt(ClientLevel level, BlockPos pos) {
-        int inside = LevelRenderer.getLightColor(level, pos);
-        int above = LevelRenderer.getLightColor(level, pos.above());
-        int block = Math.max(LightTexture.block(inside), LightTexture.block(above));
-        int sky = Math.max(LightTexture.sky(inside), LightTexture.sky(above));
-        return LightTexture.pack(block, sky);
+        int inside = LightCoordsUtil.getLightCoords(level, pos);
+        int above = LightCoordsUtil.getLightCoords(level, pos.above());
+        int block = Math.max(LightCoordsUtil.block(inside), LightCoordsUtil.block(above));
+        int sky = Math.max(LightCoordsUtil.sky(inside), LightCoordsUtil.sky(above));
+        return LightCoordsUtil.pack(block, sky);
     }
 
     /** Multiplies a matrix into the pose stack, normals included (PoseStack.mulPoseMatrix leaves them alone). */
@@ -1305,6 +1307,21 @@ public final class SceneRenderer {
         }
 
         @Override
+        public VertexConsumer setColor(int color) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setUv3(float u, float v) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setLineWidth(float width) {
+            return this;
+        }
+
+        @Override
         public VertexConsumer setNormal(float x, float y, float z) {
             return this;
         }
@@ -1316,23 +1333,24 @@ public final class SceneRenderer {
     }
 
     /** Sends everything drawn through it into one see-through black layer: the shadow of whatever is drawn. */
-    private static final class ShadowBuffers implements MultiBufferSource {
+    private static final class ShadowBuffers implements DiegesisBuffers {
         private static float alpha = 0.5F;
         /** The direction to the light, in the space of the normals drawn into the shadow. */
         private static final Vector3f light = new Vector3f(LIGHT_DIRECTION);
-        private final MultiBufferSource buffers;
+        private final DiegesisBuffers buffers;
 
-        ShadowBuffers(MultiBufferSource buffers) {
+        ShadowBuffers(DiegesisBuffers buffers) {
             this.buffers = buffers;
         }
 
         @Override
         public VertexConsumer getBuffer(RenderType type) {
-            if (type != OVERLAY) {
+            RenderType target = isItemSheet(type) ? ITEM_OVERLAY : OVERLAY;
+            if (type != target) {
                 KeptTypes.keep(buffers, type);
             }
             int a = Math.round(alpha * 255.0F);
-            return new LitFaces(new TintedConsumer(buffers.getBuffer(OVERLAY), a << 24), light);
+            return new LitFaces(new TintedConsumer(buffers.getBuffer(target), a << 24), light);
         }
     }
 }

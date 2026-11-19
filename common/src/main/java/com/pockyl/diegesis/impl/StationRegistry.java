@@ -1,6 +1,6 @@
 package com.pockyl.diegesis.impl;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -16,7 +16,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /** Every registered station type, looked up by id and by block state. */
 public final class StationRegistry {
-    private static final Map<ResourceLocation, StationType> BY_ID = new ConcurrentHashMap<>();
+    private static final Map<Identifier, StationType> BY_ID = new ConcurrentHashMap<>();
     private static final Map<Block, List<StationType>> BY_BLOCK = new ConcurrentHashMap<>();
     private static final List<StationType> BY_TAG = new CopyOnWriteArrayList<>();
 
@@ -36,7 +36,7 @@ public final class StationRegistry {
         return type;
     }
 
-    public static Optional<StationType> byId(ResourceLocation id) {
+    public static Optional<StationType> byId(Identifier id) {
         return Optional.ofNullable(BY_ID.get(id));
     }
 

@@ -6,7 +6,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.state.BlockState;
 import org.joml.Vector3f;
@@ -38,7 +38,7 @@ import java.util.Optional;
  *                    the light of the blocks around and smooth lighting's shadows in its corners. For a scene's copy of the
  *                    block it hides, so that the two look the same as they swap
  */
-public record Visual(Optional<ResourceLocation> model, Optional<ResourceLocation> mesh, Optional<ResourceLocation> texture,
+public record Visual(Optional<Identifier> model, Optional<Identifier> mesh, Optional<Identifier> texture,
         Optional<Item> item, Optional<BlockState> block, Vector3fc anchor, int tint, boolean translucent, boolean emissive,
         boolean doubleSided, float glass, boolean litAsBlock) {
     public static final Vector3fc DEFAULT_ANCHOR = new Vector3f(8.0F, 0.0F, 8.0F);
@@ -54,9 +54,9 @@ public record Visual(Optional<ResourceLocation> model, Optional<ResourceLocation
             BlockStateParser::serialize), BlockState.CODEC).xmap(either -> either.map(state -> state, state -> state), Either::left);
 
     public static final Codec<Visual> CODEC = StrictCodecs.<Visual>record(instance -> instance.group(
-            StrictCodecs.optional(ResourceLocation.CODEC, "model").forGetter(Visual::model),
-            StrictCodecs.optional(ResourceLocation.CODEC, "mesh").forGetter(Visual::mesh),
-            StrictCodecs.optional(ResourceLocation.CODEC, "texture").forGetter(Visual::texture),
+            StrictCodecs.optional(Identifier.CODEC, "model").forGetter(Visual::model),
+            StrictCodecs.optional(Identifier.CODEC, "mesh").forGetter(Visual::mesh),
+            StrictCodecs.optional(Identifier.CODEC, "texture").forGetter(Visual::texture),
             StrictCodecs.optional(BuiltInRegistries.ITEM.byNameCodec(), "item").forGetter(Visual::item),
             StrictCodecs.optional(BLOCK_STATE, "block").forGetter(Visual::block),
             StrictCodecs.optional(StrictCodecs.VEC3, "anchor").forGetter(v -> Optional.of(new Vector3f(v.anchor))),
@@ -76,18 +76,18 @@ public record Visual(Optional<ResourceLocation> model, Optional<ResourceLocation
     }
 
     /** A visual lit as models are, not as the station's block. */
-    public Visual(Optional<ResourceLocation> model, Optional<ResourceLocation> mesh, Optional<ResourceLocation> texture, Optional<Item> item,
+    public Visual(Optional<Identifier> model, Optional<Identifier> mesh, Optional<Identifier> texture, Optional<Item> item,
             Optional<BlockState> block, Vector3fc anchor, int tint, boolean translucent, boolean emissive, boolean doubleSided, float glass) {
         this(model, mesh, texture, item, block, anchor, tint, translucent, emissive, doubleSided, glass, false);
     }
 
-    public static Visual ofModel(ResourceLocation model) {
+    public static Visual ofModel(Identifier model) {
         return new Visual(Optional.of(model), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), DEFAULT_ANCHOR, WHITE,
                 false, false, false, 0.0F);
     }
 
     /** A polygon model with a texture of the block atlas. */
-    public static Visual ofMesh(ResourceLocation mesh, ResourceLocation texture) {
+    public static Visual ofMesh(Identifier mesh, Identifier texture) {
         return new Visual(Optional.empty(), Optional.of(mesh), Optional.of(texture), Optional.empty(), Optional.empty(), MESH_ANCHOR, WHITE,
                 false, false, false, 0.0F);
     }
@@ -147,7 +147,7 @@ public record Visual(Optional<ResourceLocation> model, Optional<ResourceLocation
 
     private static DataResult<BlockState> parseBlockState(String text) {
         try {
-            return DataResult.success(BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK.asLookup(), text, false).blockState());
+            return DataResult.success(BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, text, false).blockState());
         } catch (CommandSyntaxException e) {
             return DataResult.error(() -> "Not a block state: " + text + " (" + e.getMessage() + ")");
         }

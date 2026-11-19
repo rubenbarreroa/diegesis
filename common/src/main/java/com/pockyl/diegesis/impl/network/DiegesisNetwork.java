@@ -32,7 +32,7 @@ public final class DiegesisNetwork {
     }
 
     public static void receiveOnServer(ServerPlayer player, Packets.ClientPacket packet) {
-        StationManager.get(player.server).handle(player, packet);
+        StationManager.get(player.level().getServer()).handle(player, packet);
     }
 
     public static void receiveOnClient(Packets.ServerPacket packet) {

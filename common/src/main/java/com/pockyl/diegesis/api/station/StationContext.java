@@ -3,7 +3,7 @@ package com.pockyl.diegesis.api.station;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -61,9 +61,9 @@ public interface StationContext {
      * @param node the node the effect starts at, or {@code null} for the station's centre
      * @param data extra parameters for the effect
      */
-    void effect(ResourceLocation effect, String node, CompoundTag data);
+    void effect(Identifier effect, String node, CompoundTag data);
 
-    default void effect(ResourceLocation effect, String node) {
+    default void effect(Identifier effect, String node) {
         effect(effect, node, new CompoundTag());
     }
 }

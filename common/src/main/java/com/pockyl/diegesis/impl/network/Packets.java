@@ -5,7 +5,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import com.pockyl.diegesis.impl.action.StationAction;
 
@@ -54,16 +54,23 @@ public final class Packets {
     public static ServerPacket readServer(RegistryFriendlyByteBuf buf) {
         int id = buf.readByte();
         return switch (id) {
-            case 10 -> new Opened(buf.readBlockPos(), buf.readResourceLocation(), buf.readEnum(Direction.class), buf.readByteArray(),
+            case 10 -> new Opened(buf.readBlockPos(), buf.readIdentifier(), buf.readEnum(Direction.class), buf.readByteArray(),
                     buf.readUtf());
             case 11 -> new Denied(buf.readBlockPos());
             case 12 -> new Closed(buf.readBlockPos());
-            case 13 -> new StateSync(buf.readBlockPos(), buf.readResourceLocation(), buf.readEnum(Direction.class), buf.readBoolean(),
+            case 13 -> new StateSync(buf.readBlockPos(), buf.readIdentifier(), buf.readEnum(Direction.class), buf.readBoolean(),
                     buf.readByteArray());
             case 14 -> new PresenceRelay(buf.readBlockPos(), buf.readUUID(), Presence.read(buf));
-            case 15 -> new Effect(buf.readBlockPos(), buf.readResourceLocation(), buf.readUtf(64),
+            case 15 -> new Effect(buf.readBlockPos(), buf.readIdentifier(), buf.readUtf(64),
                     Objects.requireNonNullElseGet(buf.readNbt(), CompoundTag::new));
-            case 16 -> new Stations(buf.readList(FriendlyByteBuf::readResourceLocation));
+            case 16 -> {
+                int n = buf.readVarInt();
+                java.util.List<Identifier> ids = new java.util.ArrayList<>(n);
+                for (int i = 0; i < n; i++) {
+                    ids.add(buf.readIdentifier());
+                }
+                yield new Stations(ids);
+            }
             default -> throw new IllegalArgumentException("Unknown server message " + id);
         };
     }
@@ -120,7 +127,7 @@ public final class Packets {
     }
 
     /** The server accepted the player at the station; {@code state} is the full state. */
-    public record Opened(BlockPos pos, ResourceLocation type, Direction facing, byte[] state, String seat) implements ServerPacket {
+    public record Opened(BlockPos pos, Identifier type, Direction facing, byte[] state, String seat) implements ServerPacket {
         @Override
         public int id() {
             return 10;
@@ -129,7 +136,7 @@ public final class Packets {
         @Override
         public void writeBody(RegistryFriendlyByteBuf buf) {
             buf.writeBlockPos(pos);
-            buf.writeResourceLocation(type);
+            buf.writeIdentifier(type);
             buf.writeEnum(facing);
             buf.writeByteArray(state);
             buf.writeUtf(seat);
@@ -163,7 +170,7 @@ public final class Packets {
     }
 
     /** State of a station in use, to its users and the players around it; {@code full} replaces, otherwise changes. */
-    public record StateSync(BlockPos pos, ResourceLocation type, Direction facing, boolean full, byte[] data) implements ServerPacket {
+    public record StateSync(BlockPos pos, Identifier type, Direction facing, boolean full, byte[] data) implements ServerPacket {
         @Override
         public int id() {
             return 13;
@@ -172,7 +179,7 @@ public final class Packets {
         @Override
         public void writeBody(RegistryFriendlyByteBuf buf) {
             buf.writeBlockPos(pos);
-            buf.writeResourceLocation(type);
+            buf.writeIdentifier(type);
             buf.writeEnum(facing);
             buf.writeBoolean(full);
             buf.writeByteArray(data);
@@ -194,7 +201,7 @@ public final class Packets {
         }
     }
 
-    public record Effect(BlockPos pos, ResourceLocation effect, String node, CompoundTag data) implements ServerPacket {
+    public record Effect(BlockPos pos, Identifier effect, String node, CompoundTag data) implements ServerPacket {
         @Override
         public int id() {
             return 15;
@@ -203,7 +210,7 @@ public final class Packets {
         @Override
         public void writeBody(RegistryFriendlyByteBuf buf) {
             buf.writeBlockPos(pos);
-            buf.writeResourceLocation(effect);
+            buf.writeIdentifier(effect);
             buf.writeUtf(node, 64);
             buf.writeNbt(data);
         }
@@ -213,7 +220,7 @@ public final class Packets {
      * The station types the server has, sent when a player joins: the client opens only those, and a block whose addon the server
      * lacks keeps its own use (a menu) instead of a station the server would deny.
      */
-    public record Stations(java.util.List<ResourceLocation> types) implements ServerPacket {
+    public record Stations(java.util.List<Identifier> types) implements ServerPacket {
         @Override
         public int id() {
             return 16;
@@ -221,7 +228,10 @@ public final class Packets {
 
         @Override
         public void writeBody(RegistryFriendlyByteBuf buf) {
-            buf.writeCollection(types, FriendlyByteBuf::writeResourceLocation);
+            buf.writeVarInt(types.size());
+            for (Identifier id : types) {
+                buf.writeIdentifier(id);
+            }
         }
     }
 }

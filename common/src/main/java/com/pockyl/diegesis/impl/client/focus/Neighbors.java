@@ -161,7 +161,7 @@ final class Neighbors {
         }
         forward = forward.normalize();
         Vec3 right = new Vec3(-forward.z, 0.0, forward.x);
-        Vec3 here = station.pos().getCenter();
+        Vec3 here = Vec3.atCenterOf(station.pos());
         Map<Side, Double> nearest = new EnumMap<>(Side.class);
         int range = rules.range();
         BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
@@ -184,7 +184,7 @@ final class Neighbors {
                             || !DiegesisClientRuntime.joinsNeighbors(station.type(), type)) {
                         continue;
                     }
-                    Vec3 away = pos.getCenter().subtract(here);
+                    Vec3 away = Vec3.atCenterOf(pos).subtract(here);
                     double across = away.dot(right);
                     double along = away.dot(forward);
                     Side edge;

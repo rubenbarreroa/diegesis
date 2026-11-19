@@ -1,6 +1,6 @@
 package com.pockyl.diegesis.impl.client.focus;
 
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
@@ -418,7 +418,7 @@ public final class FocusInput {
                 && outsideBlock(station, x, y)) {
             // As outside a vanilla screen: the stack in the hand, or one of it, is thrown.
             com.pockyl.diegesis.impl.client.menu.MenuSession.get().click(station, null, button,
-                    net.minecraft.world.inventory.ClickType.PICKUP);
+                    net.minecraft.world.inventory.ContainerInput.PICKUP);
             return;
         }
         if (button == 1 && !carriedStack().isEmpty() && station.scene().definition().putAway()) {
@@ -595,26 +595,27 @@ public final class FocusInput {
         }
         var options = Minecraft.getInstance().options;
         var session = com.pockyl.diegesis.impl.client.menu.MenuSession.get();
+        var keyEvent = new net.minecraft.client.input.KeyEvent(keyCode, scanCode, 0);
         if (carriedStack().isEmpty()) {
-            if (options.keySwapOffhand.matches(keyCode, scanCode)) {
+            if (options.keySwapOffhand.matches(keyEvent)) {
                 session.click(station, target, net.minecraft.world.entity.player.Inventory.SLOT_OFFHAND,
-                        net.minecraft.world.inventory.ClickType.SWAP);
+                        net.minecraft.world.inventory.ContainerInput.SWAP);
                 return true;
             }
             for (int i = 0; i < 9; i++) {
-                if (options.keyHotbarSlots[i].matches(keyCode, scanCode)) {
-                    session.click(station, target, i, net.minecraft.world.inventory.ClickType.SWAP);
+                if (options.keyHotbarSlots[i].matches(keyEvent)) {
+                    session.click(station, target, i, net.minecraft.world.inventory.ContainerInput.SWAP);
                     return true;
                 }
             }
         }
         if (!itemAt(station, target).isEmpty()) {
-            if (options.keyPickItem.matches(keyCode, scanCode)) {
-                session.click(station, target, 2, net.minecraft.world.inventory.ClickType.CLONE);
+            if (options.keyPickItem.matches(keyEvent)) {
+                session.click(station, target, 2, net.minecraft.world.inventory.ContainerInput.CLONE);
                 return true;
             }
-            if (options.keyDrop.matches(keyCode, scanCode)) {
-                session.click(station, target, control ? 1 : 0, net.minecraft.world.inventory.ClickType.THROW);
+            if (options.keyDrop.matches(keyEvent)) {
+                session.click(station, target, control ? 1 : 0, net.minecraft.world.inventory.ContainerInput.THROW);
                 return true;
             }
         }
@@ -629,7 +630,8 @@ public final class FocusInput {
      */
     boolean menuPick(int button) {
         ClientStation station = station();
-        if (station == null || gesture != null || !Minecraft.getInstance().options.keyPickItem.matchesMouse(button)) {
+        var mouseEvent = new net.minecraft.client.input.MouseButtonEvent(0, 0, new net.minecraft.client.input.MouseButtonInfo(button, 0));
+        if (station == null || gesture != null || !Minecraft.getInstance().options.keyPickItem.matchesMouse(mouseEvent)) {
             return false;
         }
         Target target = targetUnderCursor(station);
@@ -648,7 +650,7 @@ public final class FocusInput {
         if (!menu || target == null || itemAt(station, target).isEmpty()) {
             return false;
         }
-        com.pockyl.diegesis.impl.client.menu.MenuSession.get().click(station, target, 2, net.minecraft.world.inventory.ClickType.CLONE);
+        com.pockyl.diegesis.impl.client.menu.MenuSession.get().click(station, target, 2, net.minecraft.world.inventory.ContainerInput.CLONE);
         return true;
     }
 
@@ -669,7 +671,7 @@ public final class FocusInput {
         if (amount < 0.0) {
             if ((there.isEmpty() || same && there.getCount() < there.getMaxStackSize())
                     && station.perform(new StationAction.Click(target, 1, ClickKind.PICKUP))) {
-                UiSounds.putDown(station.pos().getCenter());
+                UiSounds.putDown(Vec3.atCenterOf(station.pos()));
             }
             return true;
         }
@@ -694,7 +696,7 @@ public final class FocusInput {
             station.perform(new StationAction.Click(target, 0, ClickKind.PICKUP));
         }
         if (station.perform(new StationAction.Click(spare, 0, ClickKind.PICKUP))) {
-            UiSounds.pickUp(station.pos().getCenter());
+            UiSounds.pickUp(Vec3.atCenterOf(station.pos()));
         }
         return true;
     }
@@ -798,7 +800,7 @@ public final class FocusInput {
                     // Laid onto the slot's stack and the whole picked up: the hand holds both.
                     station.perform(new StationAction.Click(target, 0, ClickKind.PICKUP));
                     if (station.perform(new StationAction.Click(target, 0, ClickKind.PICKUP))) {
-                        UiSounds.pickUp(station.pos().getCenter());
+                        UiSounds.pickUp(Vec3.atCenterOf(station.pos()));
                     }
                 }
             }
@@ -813,7 +815,7 @@ public final class FocusInput {
         ItemStack there = itemAt(station, target);
         boolean takes = there.isEmpty() || ItemStack.isSameItemSameComponents(there, carried) && there.getCount() < there.getMaxStackSize();
         if (takes && station.perform(new StationAction.Click(target, 1, ClickKind.PICKUP))) {
-            UiSounds.putDown(station.pos().getCenter());
+            UiSounds.putDown(Vec3.atCenterOf(station.pos()));
         }
     }
 
@@ -823,12 +825,12 @@ public final class FocusInput {
             return;
         }
         if (station.perform(new StationAction.Click(target, 0, ClickKind.QUICK_MOVE))) {
-            UiSounds.pickUp(station.pos().getCenter());
+            UiSounds.pickUp(Vec3.atCenterOf(station.pos()));
         }
     }
 
     private static boolean hasShiftDown() {
-        return net.minecraft.client.gui.screens.Screen.hasShiftDown();
+        return Minecraft.getInstance().hasShiftDown();
     }
 
     void drag(double x, double y, int inventorySlot) {
@@ -895,7 +897,7 @@ public final class FocusInput {
         if (spreadMouseButton != 0 && spreadMouseButton != 1) {
             // The middle button. One slot is no drag: vanilla does nothing for a middle click with a stack in the hand.
             if (spreadTargets.size() > 1 && station.perform(new StationAction.Spread(spreadTargets, spreadButton))) {
-                UiSounds.putDown(station.pos().getCenter());
+                UiSounds.putDown(Vec3.atCenterOf(station.pos()));
             }
             spreadTargets.clear();
             spreadButton = -1;

@@ -71,9 +71,9 @@ public record ItemPose(float x, float y, float z, float lift, Quaternionfc rotat
 
     /** Reads what {@link #save()} wrote; null when it makes no sense. */
     public static ItemPose load(CompoundTag tag) {
-        return new ItemPose(tag.getFloat("x"), tag.getFloat("y"), tag.getFloat("z"), tag.getFloat("lift"),
-                new Quaternionf(tag.getFloat("qx"), tag.getFloat("qy"), tag.getFloat("qz"), tag.getFloat("qw")), tag.getFloat("scale"),
-                tag.getInt("on")).sanitized();
+        return new ItemPose(tag.getFloatOr("x", 0.0F), tag.getFloatOr("y", 0.0F), tag.getFloatOr("z", 0.0F), tag.getFloatOr("lift", 0.0F),
+                new Quaternionf(tag.getFloatOr("qx", 0.0F), tag.getFloatOr("qy", 0.0F), tag.getFloatOr("qz", 0.0F), tag.getFloatOr("qw", 1.0F)),
+                tag.getFloatOr("scale", 1.0F), tag.getIntOr("on", -1)).sanitized();
     }
 
     public void write(FriendlyByteBuf buf) {

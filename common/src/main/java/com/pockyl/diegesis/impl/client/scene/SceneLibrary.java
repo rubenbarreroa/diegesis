@@ -5,7 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
@@ -29,33 +29,33 @@ import java.util.stream.Collectors;
  * them while the game runs, so a scene can be tuned without restarting. A broken file is reported in the log with the
  * reason, and its station shows nothing until it is fixed.
  */
-public final class SceneLibrary extends SimplePreparableReloadListener<Map<ResourceLocation, SceneDefinition>> {
+public final class SceneLibrary extends SimplePreparableReloadListener<Map<Identifier, SceneDefinition>> {
     public static final SceneLibrary INSTANCE = new SceneLibrary();
-    public static final ResourceLocation ID = DiegesisMod.id("scenes");
+    public static final Identifier ID = DiegesisMod.id("scenes");
     private static final String SCENE_DIR = "diegesis/scenes";
     private static final String MODEL_DIR = "models/diegesis";
 
-    private volatile Map<ResourceLocation, SceneDefinition> scenes = Map.of();
-    private volatile Map<ResourceLocation, com.pockyl.diegesis.impl.client.mesh.Mesh> preparedMeshes = Map.of();
+    private volatile Map<Identifier, SceneDefinition> scenes = Map.of();
+    private volatile Map<Identifier, com.pockyl.diegesis.impl.client.mesh.Mesh> preparedMeshes = Map.of();
 
     private SceneLibrary() {
     }
 
     /** The scene for an id: a file, else one registered in code. */
-    public SceneDefinition scene(ResourceLocation id) {
+    public SceneDefinition scene(Identifier id) {
         SceneDefinition scene = scenes.get(id);
         return scene != null ? scene : ClientRegistry.codeScene(id).orElse(null);
     }
 
     @Override
-    protected Map<ResourceLocation, SceneDefinition> prepare(ResourceManager manager, ProfilerFiller profiler) {
-        Map<ResourceLocation, SceneDefinition> loaded = new HashMap<>();
+    protected Map<Identifier, SceneDefinition> prepare(ResourceManager manager, ProfilerFiller profiler) {
+        Map<Identifier, SceneDefinition> loaded = new HashMap<>();
         preparedMeshes = com.pockyl.diegesis.impl.client.mesh.MeshLibrary.load(manager);
-        Map<ResourceLocation, JsonObject> templates = loadTemplates(manager);
-        Map<ResourceLocation, Resource> files = manager.listResources(SCENE_DIR, path -> path.getPath().endsWith(".json"));
+        Map<Identifier, JsonObject> templates = loadTemplates(manager);
+        Map<Identifier, Resource> files = manager.listResources(SCENE_DIR, path -> path.getPath().endsWith(".json"));
         files.forEach((file, resource) -> {
             String path = file.getPath().substring(SCENE_DIR.length() + 1, file.getPath().length() - ".json".length());
-            ResourceLocation id = ResourceLocation.fromNamespaceAndPath(file.getNamespace(), path);
+            Identifier id = Identifier.fromNamespaceAndPath(file.getNamespace(), path);
             try (Reader reader = resource.openAsReader()) {
                 JsonElement json = JsonParser.parseReader(reader);
                 DataResult<SceneDefinition> result = NodeTemplates.expand(json, templates::get)
@@ -71,11 +71,11 @@ public final class SceneLibrary extends SimplePreparableReloadListener<Map<Resou
     }
 
     /** The node templates, {@code assets/<namespace>/diegesis/nodes/<path>.json}. */
-    private static Map<ResourceLocation, JsonObject> loadTemplates(ResourceManager manager) {
-        Map<ResourceLocation, JsonObject> templates = new HashMap<>();
+    private static Map<Identifier, JsonObject> loadTemplates(ResourceManager manager) {
+        Map<Identifier, JsonObject> templates = new HashMap<>();
         String dir = NodeTemplates.DIR;
         manager.listResources(dir, path -> path.getPath().endsWith(".json")).forEach((file, resource) -> {
-            ResourceLocation id = ResourceLocation.fromNamespaceAndPath(file.getNamespace(), file.getPath().substring(dir.length() + 1, file.getPath().length() - ".json".length()));
+            Identifier id = Identifier.fromNamespaceAndPath(file.getNamespace(), file.getPath().substring(dir.length() + 1, file.getPath().length() - ".json".length()));
             try (Reader reader = resource.openAsReader()) {
                 JsonElement json = JsonParser.parseReader(reader);
                 if (json.isJsonObject()) {
@@ -91,7 +91,7 @@ public final class SceneLibrary extends SimplePreparableReloadListener<Map<Resou
     }
 
     @Override
-    protected void apply(Map<ResourceLocation, SceneDefinition> loaded, ResourceManager manager, ProfilerFiller profiler) {
+    protected void apply(Map<Identifier, SceneDefinition> loaded, ResourceManager manager, ProfilerFiller profiler) {
         scenes = Map.copyOf(loaded);
         com.pockyl.diegesis.impl.client.mesh.MeshLibrary.INSTANCE.apply(preparedMeshes);
         DefaultColliders.clearCache();
@@ -105,18 +105,18 @@ public final class SceneLibrary extends SimplePreparableReloadListener<Map<Resou
      * The block models every scene may use without registering them: all of {@code models/diegesis/}, plus the ones
      * registered in code. Read while the models load (before the scenes).
      */
-    public static Set<ResourceLocation> modelsToLoad(ResourceManager manager) {
-        Set<ResourceLocation> models = manager.listResources(MODEL_DIR, path -> path.getPath().endsWith(".json")).keySet().stream()
-                .map(file -> ResourceLocation.fromNamespaceAndPath(file.getNamespace(), file.getPath().substring("models/".length(), file.getPath().length() - ".json".length())))
+    public static Set<Identifier> modelsToLoad(ResourceManager manager) {
+        Set<Identifier> models = manager.listResources(MODEL_DIR, path -> path.getPath().endsWith(".json")).keySet().stream()
+                .map(file -> Identifier.fromNamespaceAndPath(file.getNamespace(), file.getPath().substring("models/".length(), file.getPath().length() - ".json".length())))
                 .collect(Collectors.toSet());
         models.addAll(ClientRegistry.extraModels());
         return models;
     }
 
     /** Every model id the loaded scenes use, for warnings about models that were not loaded. */
-    public List<ResourceLocation> usedModels() {
+    public List<Identifier> usedModels() {
         return scenes.values().stream().flatMap(scene -> {
-            java.util.List<ResourceLocation> ids = new java.util.ArrayList<>();
+            java.util.List<Identifier> ids = new java.util.ArrayList<>();
             scene.forEachNode(node -> {
                 node.visual().flatMap(v -> v.model()).ifPresent(ids::add);
                 node.control().flatMap(c -> c.base()).flatMap(v -> v.model()).ifPresent(ids::add);

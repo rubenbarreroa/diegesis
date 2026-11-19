@@ -61,6 +61,25 @@ final class GlassConsumer implements VertexConsumer {
     }
 
     @Override
+    public VertexConsumer setColor(int color) {
+        int a = Math.round((color >>> 24) * (1.0F - clarity));
+        delegate.setColor((a & 0xFF) << 24 | (color & 0xFFFFFF));
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setUv3(float u, float v) {
+        delegate.setUv3(u, v);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setLineWidth(float width) {
+        delegate.setLineWidth(width);
+        return this;
+    }
+
+    @Override
     public VertexConsumer setNormal(float nx, float ny, float nz) {
         delegate.setNormal(nx, ny, nz);
         return this;

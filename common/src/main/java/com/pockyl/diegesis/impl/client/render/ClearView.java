@@ -1,11 +1,9 @@
 package com.pockyl.diegesis.impl.client.render;
 
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Camera;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
+import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -13,6 +11,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 
+import com.pockyl.diegesis.api.client.DiegesisBuffers;
 import com.pockyl.diegesis.api.scene.ClearViewOptions;
 import com.pockyl.diegesis.impl.client.ClientStation;
 import com.pockyl.diegesis.impl.client.focus.FocusController;
@@ -20,29 +19,14 @@ import com.pockyl.diegesis.impl.client.focus.FocusController;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * Keeps the camera's view of the station free ({@link ClearViewOptions}). A cone runs from the camera to what it looks at; every
- * vertex of what is inside fades by how deep it lies in the cone, so a figure dissolves softly from the middle of the view
- * outwards. Entities are drawn before the scene and, faded, write no depth: the scene comes out whole, wherever they stand.
- * Everything here is in view space (the camera at the origin); entities and particles arrive relative to the camera but not yet
- * turned to it (the level's view rotation is in the model-view matrix), so their vertices are turned here.
+ * Keeps the camera's view of the station free ({@link ClearViewOptions}).
  */
 public final class ClearView {
-    /** Width of the cone at the camera, in blocks. */
     private static final float NEAR_RADIUS = 0.2F;
-    /** How far past what the camera looks at things still fade, in blocks: what stands behind the station hides nothing. */
     private static final float BEHIND = 0.5F;
-    private static final Pattern TEXTURE = Pattern.compile("Optional\\[([a-z0-9_.-]+:[a-z0-9_/.-]+)]");
     private static final Map<RenderType, Optional<RenderType>> GHOSTS = new HashMap<>();
-    /**
-     * Whether the renderer takes vertices only into buffers of its own kind: Sodium up to 0.5.3, Rubidium and Embeddium 0.1
-     * write entity shadows, glints and outlines straight into the buffer under a vertex consumer and crash on any other. Their
-     * API, like early Embeddium's, has no {@code canUseIntrinsics} yet. Entities in the way stay solid there.
-     */
-    private static final boolean STRICT_RENDERER = strictRenderer();
 
     private static final Matrix4f VIEW = new Matrix4f();
     private static final Vector3f AXIS = new Vector3f();
@@ -58,10 +42,8 @@ public final class ClearView {
     private static double cameraZ;
     private static Entity current;
     private static FadingParticle faded;
-    /** This frame's cone for particles, for {@link #particleFadeAt}; null while nothing fades. */
     private static volatile Cone cone;
 
-    /** The clear view's cone as it stands this frame, unchanging: readable from any thread. */
     private record Cone(Matrix4f view, float axisX, float axisY, float axisZ, float length, float radius, float soft, float strength,
                         double cameraX, double cameraY, double cameraZ) {
     }
@@ -69,11 +51,6 @@ public final class ClearView {
     private ClearView() {
     }
 
-    /**
-     * Called at the start of the level's rendering.
-     *
-     * @param view the level's view matrix: the camera's rotation, no translation
-     */
     public static void begin(Matrix4f view, Camera camera) {
         strength = 0.0F;
         cone = null;
@@ -83,7 +60,7 @@ public final class ClearView {
             return;
         }
         ClearViewOptions options = station.scene().definition().clearView();
-        Vec3 eye = camera.getPosition();
+        Vec3 eye = camera.position();
         Vector3fc looked = focus.baseTarget();
         Vec3 target = station.toWorld(looked.x(), looked.y(), looked.z());
         VIEW.set(view);
@@ -106,7 +83,6 @@ public final class ClearView {
         }
     }
 
-    /** How solid a point in view space stays, 0 to 1. */
     private static float fade(float x, float y, float z) {
         return fade(AXIS.x, AXIS.y, AXIS.z, length, radius, soft, strength, x, y, z);
     }
@@ -128,10 +104,6 @@ public final class ClearView {
         return 1.0F - strength * inside;
     }
 
-    /**
-     * How solid a particle at {@code x, y, z} in the world stays, 0 to 1, for a renderer that takes particles off the render thread
-     * and draws them later (AsyncParticles' GPU particles): it reads this frame's cone only, and changes nothing.
-     */
     public static float particleFadeAt(double x, double y, double z) {
         Cone c = cone;
         if (c == null) {
@@ -147,41 +119,23 @@ public final class ClearView {
         return clamped * clamped * (3.0F - 2.0F * clamped);
     }
 
-    /** Notes the entity about to be drawn. */
     public static void entity(Entity entity) {
         current = entity;
     }
 
-    /** What the entity noted last draws into: the game's buffers, or fading ones while it may stand in the way. */
-    public static MultiBufferSource buffers(MultiBufferSource buffers) {
-        if (strength <= 0.0F || !entities || STRICT_RENDERER || current == null || ShaderShadows.drawing()
-                || !mayBeInside(current.getBoundingBox())) {
+    public static DiegesisBuffers buffers(DiegesisBuffers buffers) {
+        if (strength <= 0.0F || !entities || current == null || ShaderShadows.drawing() || !mayBeInside(current.getBoundingBox())) {
             return buffers;
         }
         return type -> {
             Optional<RenderType> ghost = GHOSTS.computeIfAbsent(type, ClearView::ghostOf);
             if (ghost.isEmpty()) {
-                // Text, lines and glints stay solid and get the game's own buffer: Iris writes a name label straight into
-                // the buffer under its consumer and crashes on any wrapper (Sodium 0.5).
                 return buffers.getBuffer(type);
             }
-            KeptTypes.keep(buffers, type);
             Fading fading = new Fading();
             fading.delegate = buffers.getBuffer(ghost.get());
             return fading;
         };
-    }
-
-    private static boolean strictRenderer() {
-        try {
-            Class.forName("net.caffeinemc.mods.sodium.api.vertex.buffer.VertexBufferWriter", false, ClearView.class.getClassLoader())
-                    .getMethod("canUseIntrinsics");
-            return false;
-        } catch (ClassNotFoundException e) {
-            return false;
-        } catch (NoSuchMethodException e) {
-            return true;
-        }
     }
 
     private static boolean mayBeInside(AABB box) {
@@ -196,20 +150,18 @@ public final class ClearView {
         return distance < radius + reach;
     }
 
-    /** The translucent, depth-less twin of a textured entity type; empty for what has no texture to show (lines, text, glints). */
     private static Optional<RenderType> ghostOf(RenderType type) {
-        if (type.format() != DefaultVertexFormat.NEW_ENTITY) {
+        if (!type.format().contains("Normal") || !type.format().contains("UV2")) {
             return Optional.empty();
         }
-        // The state's texture is out of reach of code that is no render state, but every type prints it.
-        Matcher matcher = TEXTURE.matcher(type.toString());
-        return matcher.find() ? Optional.of(DiegesisRenderTypes.ghostEntity(ResourceLocation.parse(matcher.group(1)))) : Optional.empty();
+        RenderSetup setup = type.state;
+        if (setup == null || setup.textures == null) {
+            return Optional.empty();
+        }
+        RenderSetup.TextureBinding binding = setup.textures.get("Sampler0");
+        return binding != null ? Optional.of(DiegesisRenderTypes.ghostEntity(binding.location())) : Optional.empty();
     }
 
-    /**
-     * How solid a particle drawn now stays, 0 to 1, from where its middle lies relative to the camera. Puts back the particle faded
-     * before it first: a particle is faded only while it is drawn.
-     */
     public static float particleFade(double x, double y, double z) {
         restoreParticle();
         if (strength <= 0.0F || !particles) {
@@ -219,12 +171,10 @@ public final class ClearView {
         return fade(POINT.x, POINT.y, POINT.z);
     }
 
-    /** Notes the particle just faded, to be put back once it is drawn. */
     public static void fadedParticle(FadingParticle particle) {
         faded = particle;
     }
 
-    /** Gives the particle faded last its own alpha and size back. */
     public static void restoreParticle() {
         FadingParticle particle = faded;
         if (particle != null) {
@@ -233,17 +183,10 @@ public final class ClearView {
         }
     }
 
-    /**
-     * A world particle that can be faded and shrunk towards its middle while it is drawn. Shrinking keeps it soft for particles drawn
-     * without blending (the smoke and flames of a campfire): those show whole down to a tenth of their alpha, so a fade alone made
-     * them pop in at the edge of the cone.
-     */
     public interface FadingParticle {
-        /** Puts back the alpha and size the particle had before it was faded. */
         void diegesis$restore();
     }
 
-    /** Passes vertices on with their alpha scaled by where they are. */
     private static final class Fading implements VertexConsumer {
         private VertexConsumer delegate;
         private float fade = 1.0F;
@@ -267,6 +210,13 @@ public final class ClearView {
         }
 
         @Override
+        public VertexConsumer setColor(int color) {
+            int alpha = Math.round((color >>> 24) * fade);
+            delegate.setColor((alpha & 0xFF) << 24 | (color & 0xFFFFFF));
+            return this;
+        }
+
+        @Override
         public VertexConsumer setUv(float u, float v) {
             delegate.setUv(u, v);
             return this;
@@ -281,6 +231,18 @@ public final class ClearView {
         @Override
         public VertexConsumer setUv2(int u, int v) {
             delegate.setUv2(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setUv3(float u, float v) {
+            delegate.setUv3(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setLineWidth(float width) {
+            delegate.setLineWidth(width);
             return this;
         }
 

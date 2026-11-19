@@ -1,7 +1,7 @@
 package com.pockyl.diegesis.api.station;
 
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.inventory.MenuType;
 
 import java.util.LinkedHashMap;
@@ -27,7 +27,7 @@ public final class MenuBinding {
     public static final int DEFAULT_AUTO_DELAY = 3;
 
     private final List<MenuType<?>> accepted;
-    private final Set<ResourceLocation> acceptedNames;
+    private final Set<Identifier> acceptedNames;
     private final Map<String, SlotRange> slots;
     private final Map<String, Integer> outputs;
     private final int openTimeoutTicks;
@@ -55,7 +55,7 @@ public final class MenuBinding {
     }
 
     /** Menu types taken by their registry name ({@link Builder#alsoAccepts}), whether or not their mod is installed. */
-    public Set<ResourceLocation> acceptedNames() {
+    public Set<Identifier> acceptedNames() {
         return acceptedNames;
     }
 
@@ -87,7 +87,7 @@ public final class MenuBinding {
 
     public static final class Builder {
         private final List<MenuType<?>> accepted;
-        private final Set<ResourceLocation> acceptedNames = new LinkedHashSet<>();
+        private final Set<Identifier> acceptedNames = new LinkedHashSet<>();
         private final Map<String, SlotRange> slots = new LinkedHashMap<>();
         private final Map<String, Integer> outputs = new LinkedHashMap<>();
         private int openTimeoutTicks = DEFAULT_OPEN_TIMEOUT;
@@ -102,8 +102,8 @@ public final class MenuBinding {
          * that gives the crafting table a menu of its own built on vanilla's, Visual Workbench's {@code visualworkbench:crafting}).
          * Named, not given as types: that mod registers them after stations are built, and need not be installed at all.
          */
-        public Builder alsoAccepts(ResourceLocation... names) {
-            for (ResourceLocation name : names) {
+        public Builder alsoAccepts(Identifier... names) {
+            for (Identifier name : names) {
                 acceptedNames.add(Objects.requireNonNull(name));
             }
             return this;

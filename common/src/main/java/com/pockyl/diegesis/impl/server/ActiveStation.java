@@ -3,7 +3,7 @@ package com.pockyl.diegesis.impl.server;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -159,7 +159,7 @@ final class ActiveStation implements StationContext {
     }
 
     @Override
-    public void effect(ResourceLocation effect, String node, CompoundTag data) {
+    public void effect(Identifier effect, String node, CompoundTag data) {
         Packets.Effect packet = new Packets.Effect(pos, effect, node == null ? "" : node, data);
         forEachRecipient(player -> Platform.INSTANCE.send(player, packet));
     }

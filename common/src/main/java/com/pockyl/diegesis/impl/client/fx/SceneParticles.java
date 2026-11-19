@@ -3,13 +3,13 @@ package com.pockyl.diegesis.impl.client.fx;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LightTexture;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.util.LightCoordsUtil;
+import com.pockyl.diegesis.api.client.DiegesisBuffers;
+import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.util.FastColor;
+import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import org.joml.Matrix4fc;
@@ -35,7 +35,7 @@ public final class SceneParticles {
      * Drawn after the see-through geometry, sorted back to front and writing no depth: a puff in front must not cut square holes
      * into the puffs behind it, and what is under a liquid's surface fades by its depth instead of being buried.
      */
-    public static final RenderType TYPE = RenderType.entityNoOutline(TextureAtlas.LOCATION_PARTICLES);
+    public static final RenderType TYPE = net.minecraft.client.renderer.rendertype.RenderTypes.entityTranslucent(TextureAtlas.LOCATION_PARTICLES);
     /** The wave a bubble leaves when it pops, about its height in pixels. */
     private static final float POP_RIPPLE = 0.09F;
     /** Where bubbles along a wall lie: how far from it at least, and over how wide a band, in pixels. */
@@ -216,7 +216,7 @@ public final class SceneParticles {
      * @param up    camera up in station space (unit)
      * @param view  the direction the camera looks, in station space (unit)
      */
-    public void render(PoseStack poseStack, MultiBufferSource buffers, Vector3fc right, Vector3fc up, Vector3fc view, int light) {
+    public void render(PoseStack poseStack, DiegesisBuffers buffers, Vector3fc right, Vector3fc up, Vector3fc view, int light) {
         if (particles.isEmpty()) {
             return;
         }
@@ -250,7 +250,7 @@ public final class SceneParticles {
                 a.set(up).mul(size);
                 b.set(right).mul(size);
             }
-            int packed = style.emissive() ? LightTexture.FULL_BRIGHT : light;
+            int packed = style.emissive() ? LightCoordsUtil.FULL_BRIGHT : light;
             int color = particle.color;
             Vector3f p = particle.pos;
             corner(consumer, pose, p.x - b.x - a.x, p.y - b.y - a.y, p.z - b.z - a.z, sprite.getU1(), sprite.getV1(), color, alpha, packed);
@@ -263,7 +263,7 @@ public final class SceneParticles {
     private static void corner(VertexConsumer consumer, PoseStack.Pose pose, float x, float y, float z, float u, float v, int color,
             float alpha, int light) {
         Vector3f point = pose.pose().transformPosition(new Vector3f(x, y, z));
-        consumer.addVertex(point.x, point.y, point.z, FastColor.ARGB32.color(Math.round(Mth.clamp(alpha, 0.0F, 1.0F) * 255.0F), color), u, v,
+        consumer.addVertex(point.x, point.y, point.z, ARGB.color(Math.round(Mth.clamp(alpha, 0.0F, 1.0F) * 255.0F), color), u, v,
                 OverlayTexture.NO_OVERLAY, light, 0.0F, 1.0F, 0.0F);
     }
 

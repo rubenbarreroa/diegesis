@@ -349,7 +349,7 @@ public final class ActionHandler {
                 ItemStack rest = result.copy();
                 player.getInventory().add(rest);
                 if (!rest.isEmpty()) {
-                    player.drop(rest, false);
+                    player.drop(rest, false, net.minecraft.util.Prediction.SERVER_ONLY);
                 }
                 logic.updateOutputs(station);
                 if (!ItemStack.isSameItemSameComponents(state.getOutput(output), shown)) {
@@ -559,7 +559,7 @@ public final class ActionHandler {
 
     private static void give(StationContext station, Player player, ItemStack stack, boolean present) {
         if (present) {
-            player.getInventory().placeItemBackInInventory(stack);
+            player.getInventory().placeItemBackInInventory(stack, net.minecraft.util.Prediction.SERVER_ONLY);
         } else {
             Containers.dropItemStack(station.level(), station.pos().getX() + 0.5, station.pos().getY() + 1.0,
                     station.pos().getZ() + 0.5, stack);

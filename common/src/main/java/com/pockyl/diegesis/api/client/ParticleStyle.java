@@ -1,6 +1,6 @@
 package com.pockyl.diegesis.api.client;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 
@@ -25,8 +25,8 @@ import java.util.List;
  * @param surface  a particle style that takes over where it reaches a liquid's surface, in the same colour, and sends a small
  *                 ring over the liquid when it ends: a bubble swells there and pops. Null: it just ends at the surface
  */
-public record ParticleStyle(List<ResourceLocation> sprites, int color, float[] size, float[] life, float gravity, float drag,
-        boolean emissive, boolean stretch, float grow, boolean fade, float wobble, float fadeIn, ResourceLocation surface) {
+public record ParticleStyle(List<Identifier> sprites, int color, float[] size, float[] life, float gravity, float drag,
+        boolean emissive, boolean stretch, float grow, boolean fade, float wobble, float fadeIn, Identifier surface) {
     public ParticleStyle {
         if (sprites.isEmpty()) {
             throw new IllegalArgumentException("A particle style needs at least one sprite");
@@ -36,27 +36,27 @@ public record ParticleStyle(List<ResourceLocation> sprites, int color, float[] s
         life = life.clone();
     }
 
-    public ParticleStyle(List<ResourceLocation> sprites, int color, float[] size, float[] life, float gravity, float drag, boolean emissive,
+    public ParticleStyle(List<Identifier> sprites, int color, float[] size, float[] life, float gravity, float drag, boolean emissive,
             boolean stretch, float grow, boolean fade, float wobble) {
         this(sprites, color, size, life, gravity, drag, emissive, stretch, grow, fade, wobble, 0.0F, null);
     }
 
     /** A style playing {@code sprites}, for a list made with {@link #frames}. */
-    public static Builder builder(List<ResourceLocation> sprites) {
+    public static Builder builder(List<Identifier> sprites) {
         return new Builder(sprites);
     }
 
-    public static Builder builder(ResourceLocation... sprites) {
+    public static Builder builder(Identifier... sprites) {
         return new Builder(List.of(sprites));
     }
 
     /** Sprites {@code minecraft:<base>_0} .. {@code <base>_<count - 1>}. */
-    public static List<ResourceLocation> frames(String base, int count) {
-        return java.util.stream.IntStream.range(0, count).mapToObj(i -> ResourceLocation.withDefaultNamespace(base + "_" + i)).toList();
+    public static List<Identifier> frames(String base, int count) {
+        return java.util.stream.IntStream.range(0, count).mapToObj(i -> Identifier.withDefaultNamespace(base + "_" + i)).toList();
     }
 
     public static final class Builder {
-        private final List<ResourceLocation> sprites;
+        private final List<Identifier> sprites;
         private int color = 0xFFFFFFFF;
         private float[] size = {0.4F, 0.6F};
         private float[] life = {0.5F, 1.0F};
@@ -68,9 +68,9 @@ public record ParticleStyle(List<ResourceLocation> sprites, int color, float[] s
         private boolean fade = true;
         private float wobble;
         private float fadeIn;
-        private ResourceLocation surface;
+        private Identifier surface;
 
-        private Builder(List<ResourceLocation> sprites) {
+        private Builder(List<Identifier> sprites) {
             this.sprites = sprites;
         }
 
@@ -131,7 +131,7 @@ public record ParticleStyle(List<ResourceLocation> sprites, int color, float[] s
         }
 
         /** Where it reaches a liquid's surface, the style {@code id} takes over (a bubble swells and pops). */
-        public Builder surface(ResourceLocation id) {
+        public Builder surface(Identifier id) {
             surface = id;
             return this;
         }

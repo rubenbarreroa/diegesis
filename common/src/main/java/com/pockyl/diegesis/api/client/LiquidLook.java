@@ -1,6 +1,6 @@
 package com.pockyl.diegesis.api.client;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * How a liquid looks in the scene's tanks. Water and lava are known; mods describe their own liquids (reagents) with
@@ -14,14 +14,14 @@ import net.minecraft.resources.ResourceLocation;
  * @param viscosity how thick it moves, 0 (water) to 1: waves run slower, die sooner and catch less light, the surface rocks
  *                 less. A soup, oil, honey
  */
-public record LiquidLook(int color, ResourceLocation sprite, boolean emissive, float viscosity) {
+public record LiquidLook(int color, Identifier sprite, boolean emissive, float viscosity) {
     /** Vanilla's flow, opaque and nearly white: the colour shows as it is and the alpha alone decides the thickness. */
-    public static final ResourceLocation LIQUID_SPRITE = ResourceLocation.fromNamespaceAndPath("diegesis", "block/liquid");
+    public static final Identifier LIQUID_SPRITE = Identifier.fromNamespaceAndPath("diegesis", "block/liquid");
     /** Vanilla water: grey and 30% see-through by itself, so whatever it tints comes out dim and thin. */
-    public static final ResourceLocation WATER_SPRITE = ResourceLocation.withDefaultNamespace("block/water_still");
-    public static final ResourceLocation LAVA_SPRITE = ResourceLocation.withDefaultNamespace("block/lava_still");
+    public static final Identifier WATER_SPRITE = Identifier.withDefaultNamespace("block/water_still");
+    public static final Identifier LAVA_SPRITE = Identifier.withDefaultNamespace("block/lava_still");
 
-    public LiquidLook(int color, ResourceLocation sprite, boolean emissive) {
+    public LiquidLook(int color, Identifier sprite, boolean emissive) {
         this(color, sprite, emissive, 0.0F);
     }
 

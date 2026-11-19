@@ -24,7 +24,7 @@ import java.util.stream.Stream;
  */
 public final class StrictCodecs {
     /** A position or size in Blockbench pixels, {@code [x, y, z]}. */
-    public static final Codec<Vector3f> VEC3 = ExtraCodecs.VECTOR3F;
+    public static final Codec<Vector3f> VEC3 = ExtraCodecs.VECTOR3F.xmap(Vector3f::new, v -> v);
     /** Two numbers, {@code [min, max]}. */
     public static final Codec<float[]> RANGE = Codec.FLOAT.listOf().comapFlatMap(list -> list.size() == 2
             ? DataResult.success(new float[] {list.get(0), list.get(1)})

@@ -1,7 +1,7 @@
 package com.pockyl.diegesis.api.scene;
 
 import com.mojang.serialization.Codec;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 
@@ -25,10 +25,10 @@ import java.util.Optional;
  * @param inLiquid the particles start anywhere in the node's liquid (its {@code tank}) and end at the surface - bubbles;
  *                 {@code offset} and {@code spread} are then unused
  */
-public record EmitterDefinition(ResourceLocation particle, float rate, Vector3fc offset, Vector3fc velocity, float spread,
+public record EmitterDefinition(Identifier particle, float rate, Vector3fc offset, Vector3fc velocity, float spread,
         Optional<Integer> color, boolean enabled, float scale, boolean inLiquid) {
     public static final Codec<EmitterDefinition> CODEC = StrictCodecs.record(instance -> instance.group(
-            ResourceLocation.CODEC.fieldOf("particle").forGetter(EmitterDefinition::particle),
+            Identifier.CODEC.fieldOf("particle").forGetter(EmitterDefinition::particle),
             StrictCodecs.optional(Codec.floatRange(0.0F, 200.0F), "rate", 4.0F).forGetter(EmitterDefinition::rate),
             StrictCodecs.optional(StrictCodecs.VEC3, "offset", new Vector3f()).forGetter(e -> new Vector3f(e.offset)),
             StrictCodecs.optional(StrictCodecs.VEC3, "velocity", new Vector3f()).forGetter(e -> new Vector3f(e.velocity)),

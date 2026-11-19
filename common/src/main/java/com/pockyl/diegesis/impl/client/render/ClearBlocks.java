@@ -121,7 +121,7 @@ public final class ClearBlocks {
             if (!other.contains(packed)) {
                 BlockPos pos = BlockPos.of(packed);
                 BlockState state = level.getBlockState(pos);
-                Minecraft.getInstance().levelRenderer.blockChanged(level, pos, state, state, 8);
+                level.sendBlockUpdated(pos, state, state, 8);
             }
         }
     }

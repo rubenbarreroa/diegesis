@@ -1,7 +1,7 @@
 package com.pockyl.diegesis.api.client;
 
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import com.pockyl.diegesis.api.event.SceneEvent;
@@ -109,7 +109,7 @@ public interface StationBehavior {
     }
 
     /** The station logic played an effect ({@code StationContext.effect}); runs after the effect itself. */
-    default void onEffect(StationView view, ResourceLocation effect, String node, CompoundTag data) {
+    default void onEffect(StationView view, Identifier effect, String node, CompoundTag data) {
     }
 
     /** A menu-backed station's vanilla menu arrived from the server: {@link StationView#menu()} is there from now on. */

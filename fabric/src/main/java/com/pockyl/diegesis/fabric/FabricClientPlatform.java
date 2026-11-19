@@ -1,14 +1,24 @@
 package com.pockyl.diegesis.fabric;
 
+import net.fabricmc.fabric.api.client.model.loading.v1.ExtraModelKey;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.resources.model.ModelManager;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import com.pockyl.diegesis.impl.network.Packets;
 import com.pockyl.diegesis.platform.ClientPlatform;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 public final class FabricClientPlatform implements ClientPlatform {
+    static final Map<Identifier, ExtraModelKey<BlockStateModel>> EXTRA_MODELS = new ConcurrentHashMap<>();
+
+    static ExtraModelKey<BlockStateModel> keyFor(Identifier id) {
+        return EXTRA_MODELS.computeIfAbsent(id, k -> ExtraModelKey.create(k::toString));
+    }
+
     @Override
     public boolean serverHasChannel() {
         return Minecraft.getInstance().getConnection() != null && FabricNetwork.serverHasChannel();
@@ -22,9 +32,15 @@ public final class FabricClientPlatform implements ClientPlatform {
     }
 
     @Override
-    public BakedModel getModel(ResourceLocation id) {
+    public BlockStateModel getModel(Identifier id) {
         ModelManager manager = Minecraft.getInstance().getModelManager();
-        BakedModel model = manager.getModel(id);
-        return model != null ? model : manager.getMissingModel();
+        ExtraModelKey<BlockStateModel> key = EXTRA_MODELS.get(id);
+        if (key != null) {
+            BlockStateModel model = manager.getModel(key);
+            if (model != null) {
+                return model;
+            }
+        }
+        return manager.getBlockStateModelSet().missingModel();
     }
 }

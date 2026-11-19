@@ -1,6 +1,6 @@
 package com.pockyl.diegesis.impl.client.scene;
 
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
 import org.joml.Matrix4f;

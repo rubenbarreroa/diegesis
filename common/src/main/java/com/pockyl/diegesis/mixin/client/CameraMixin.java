@@ -1,27 +1,21 @@
 package com.pockyl.diegesis.mixin.client;
 
 import net.minecraft.client.Camera;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.pockyl.diegesis.impl.client.focus.FocusController;
 
 /**
- * Moves the camera to the station while the player works at it. Neither loader has a camera position event on 1.21.1
- * (NeoForge's ViewportEvent only turns the camera). Runs after vanilla and other mods placed the camera, and only while
- * focused, so third-person and camera mods keep working the rest of the time. Its priority makes it the last hook at the
- * end of the setup: camera mods that place the camera there too (Perspective API, under Leawind's Third Person) ran after it
- * and turned the station's view away. Their pose is where the flight starts and ends.
+ * Moves the camera to the station while the player works at it, and applies the scene's FOV.
  */
 @Mixin(value = Camera.class, priority = 2000)
 abstract class CameraMixin {
-    /** Blocks between the camera and the eyes before the player's body is drawn. */
     private static final double BODY_CLEARANCE = 0.75;
 
     @Shadow
@@ -33,32 +27,30 @@ abstract class CameraMixin {
     @Shadow
     protected abstract void setRotation(float yRot, float xRot);
 
-    @Shadow
-    public abstract Vec3 getPosition();
-
-    @Shadow
-    public abstract float getXRot();
-
-    @Shadow
-    public abstract float getYRot();
-
-    @Inject(method = "setup", at = @At("TAIL"))
-    private void diegesis$focusCamera(BlockGetter level, Entity entity, boolean detachedView, boolean thirdPersonReverse, float partialTick,
-            CallbackInfo ci) {
+    @Inject(method = "alignWithEntity", at = @At("TAIL"))
+    private void diegesis$focusCamera(float partialTick, CallbackInfo ci) {
         FocusController focus = FocusController.get();
         if (!focus.isActive()) {
             return;
         }
+        Camera self = (Camera) (Object) this;
+        boolean wasDetached = detached;
         focus.frame();
-        Vec3 eye = getPosition();
-        FocusController.CameraPose pose = focus.cameraPose(eye, getYRot(), getXRot());
+        Vec3 eye = self.position();
+        FocusController.CameraPose pose = focus.cameraPose(eye, self.yRot(), self.xRot());
         if (pose == null) {
             return;
         }
         setRotation(pose.yaw(), pose.pitch());
         setPosition(pose.position());
-        // Detached draws the player's own body - but only once the camera is out of the head, never from inside it, and
-        // never when the scene hides it.
-        detached = !focus.options().hidePlayer() && (detachedView || pose.position().distanceToSqr(eye) > BODY_CLEARANCE * BODY_CLEARANCE);
+        detached = !focus.options().hidePlayer() && (wasDetached || pose.position().distanceToSqr(eye) > BODY_CLEARANCE * BODY_CLEARANCE);
+    }
+
+    @Inject(method = "calculateFov", at = @At("RETURN"), cancellable = true)
+    private void diegesis$focusFov(float partialTick, CallbackInfoReturnable<Float> cir) {
+        FocusController focus = FocusController.get();
+        if (focus.isActive()) {
+            cir.setReturnValue((float) focus.fov(cir.getReturnValue()));
+        }
     }
 }

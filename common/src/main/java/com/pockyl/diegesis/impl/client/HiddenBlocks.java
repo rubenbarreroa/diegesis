@@ -122,7 +122,7 @@ public final class HiddenBlocks {
         for (BlockPos pos : changed) {
             if (minecraft.level != null) {
                 BlockState state = minecraft.level.getBlockState(pos);
-                minecraft.levelRenderer.blockChanged(minecraft.level, pos, state, state, Block.UPDATE_IMMEDIATE);
+                minecraft.level.sendBlockUpdated(pos, state, state, Block.UPDATE_IMMEDIATE);
             }
         }
     }

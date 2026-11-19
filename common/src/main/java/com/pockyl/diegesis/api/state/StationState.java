@@ -3,6 +3,7 @@ package com.pockyl.diegesis.api.state;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.item.ItemStack;
@@ -257,9 +258,12 @@ public final class StationState {
             ListTag list = new ListTag();
             for (int i = 0; i < stacks.length; i++) {
                 if (!stacks[i].isEmpty()) {
-                    CompoundTag entry = new CompoundTag();
-                    entry.putInt("Slot", i);
-                    list.add(stacks[i].save(registries, entry));
+                    Tag encoded = ItemStack.CODEC.encodeStart(registries.createSerializationContext(NbtOps.INSTANCE), stacks[i])
+                            .result().orElse(null);
+                    if (encoded instanceof CompoundTag entry) {
+                        entry.putInt("Slot", i);
+                        list.add(entry);
+                    }
                 }
             }
             slotsTag.put(name, list);
@@ -287,37 +291,38 @@ public final class StationState {
 
     /** Reads what {@link #save} wrote; unknown names (from an older version of the mod) are ignored. */
     public void load(CompoundTag tag, HolderLookup.Provider registries) {
-        CompoundTag slotsTag = tag.getCompound("slots");
+        CompoundTag slotsTag = tag.getCompoundOrEmpty("slots");
+        var ops = registries.createSerializationContext(NbtOps.INSTANCE);
         slots.forEach((name, stacks) -> {
             if (storages.containsKey(name)) {
                 return;
             }
             java.util.Arrays.fill(stacks, ItemStack.EMPTY);
-            ListTag list = slotsTag.getList(name, Tag.TAG_COMPOUND);
+            ListTag list = slotsTag.getListOrEmpty(name);
             for (int i = 0; i < list.size(); i++) {
-                CompoundTag entry = list.getCompound(i);
-                int index = entry.getInt("Slot");
+                CompoundTag entry = list.getCompoundOrEmpty(i);
+                int index = entry.getIntOr("Slot", -1);
                 if (index >= 0 && index < stacks.length) {
-                    if (entry.contains("Count", Tag.TAG_BYTE) && !entry.contains("count")) {
+                    if (entry.contains("Count") && !entry.contains("count")) {
                         // Saved by a Minecraft 1.20 version of the library: the plain item survives, its old tag does not.
-                        entry.putInt("count", entry.getByte("Count"));
+                        entry.putInt("count", entry.getByteOr("Count", (byte) 1));
                     }
-                    stacks[index] = ItemStack.parseOptional(registries, entry);
+                    stacks[index] = ItemStack.OPTIONAL_CODEC.parse(ops, entry).result().orElse(ItemStack.EMPTY);
                 }
             }
         });
-        CompoundTag controlsTag = tag.getCompound("controls");
+        CompoundTag controlsTag = tag.getCompoundOrEmpty("controls");
         schema.controls().forEach((name, spec) -> controls.put(name,
-                controlsTag.contains(name, Tag.TAG_FLOAT) ? spec.sanitize(controlsTag.getFloat(name)) : spec.initial()));
-        CompoundTag tanksTag = tag.getCompound("tanks");
+                controlsTag.getFloat(name).map(spec::sanitize).orElse(spec.initial())));
+        CompoundTag tanksTag = tag.getCompoundOrEmpty("tanks");
         schema.tanks().forEach((name, spec) -> tanks.put(name,
-                tanksTag.contains(name, Tag.TAG_COMPOUND) ? TankContents.load(tanksTag.getCompound(name)) : spec.initial()));
-        data = tag.getCompound("data").copy();
+                tanksTag.getCompound(name).map(TankContents::load).orElse(spec.initial())));
+        data = tag.getCompoundOrEmpty("data").copy();
         poses.clear();
-        ListTag posesTag = tag.getList("poses", Tag.TAG_COMPOUND);
+        ListTag posesTag = tag.getListOrEmpty("poses");
         for (int i = 0; i < posesTag.size(); i++) {
-            CompoundTag entry = posesTag.getCompound(i);
-            SlotRef ref = new SlotRef(entry.getString("Group"), entry.getInt("Slot"));
+            CompoundTag entry = posesTag.getCompoundOrEmpty(i);
+            SlotRef ref = new SlotRef(entry.getStringOr("Group", ""), entry.getIntOr("Slot", 0));
             ItemPose pose = ItemPose.load(entry);
             if (pose != null && schema.hasSlot(ref)) {
                 poses.put(ref, pose);

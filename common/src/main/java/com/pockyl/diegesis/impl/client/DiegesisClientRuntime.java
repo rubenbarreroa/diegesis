@@ -4,7 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.level.block.state.BlockState;
@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /** The client half of the library: wiring called by the loaders, and the hook that turns a block use into a station. */
 public final class DiegesisClientRuntime {
     /** Station types whose open condition threw, each logged once. */
-    private static final Set<ResourceLocation> FAILED_CONDITIONS = ConcurrentHashMap.newKeySet();
+    private static final Set<Identifier> FAILED_CONDITIONS = ConcurrentHashMap.newKeySet();
 
     private DiegesisClientRuntime() {
     }
@@ -126,7 +126,7 @@ public final class DiegesisClientRuntime {
     /** The client's station at {@code pos}, facing as it opens for the player, in the seat they would likely get. */
     private static ClientStation prepare(LocalPlayer player, StationType type, BlockPos pos, BlockState state) {
         Vec3 from = SubLevels.toLevel(player.level(), pos, player.position(), true);
-        Direction towardsPlayer = Direction.getNearest(from.x - pos.getX() - 0.5, 0.0, from.z - pos.getZ() - 0.5);
+        Direction towardsPlayer = Direction.getApproximateNearest(from.x - pos.getX() - 0.5, 0.0, from.z - pos.getZ() - 0.5);
         if (!towardsPlayer.getAxis().isHorizontal()) {
             towardsPlayer = player.getDirection().getOpposite();
         }
