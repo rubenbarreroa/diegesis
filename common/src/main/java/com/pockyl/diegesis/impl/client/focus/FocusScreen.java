@@ -706,13 +706,13 @@ public final class FocusScreen extends Screen {
      * {@code 2 = middle}).
      */
     private static int normalizeButton(int rawButton) {
-        if (rawButton == InputConstants.MOUSE_BUTTON_LEFT) {
+        if (rawButton == InputConstants.MOUSE_BUTTON_LEFT || rawButton == 0) {
             return 0;
         }
-        if (rawButton == InputConstants.MOUSE_BUTTON_RIGHT) {
+        if (rawButton == InputConstants.MOUSE_BUTTON_RIGHT || rawButton == 1) {
             return 1;
         }
-        if (rawButton == InputConstants.MOUSE_BUTTON_MIDDLE) {
+        if (rawButton == InputConstants.MOUSE_BUTTON_MIDDLE || rawButton == 2) {
             return 2;
         }
         return rawButton;
@@ -735,7 +735,7 @@ public final class FocusScreen extends Screen {
             FocusInput.get().drawer().togglePin();
             return true;
         }
-        if (rawButton == InputConstants.MOUSE_BUTTON_LEFT || rawButton == InputConstants.MOUSE_BUTTON_RIGHT) {
+        if (button == 0 || button == 1) {
             FocusInput.get().press(mouseX, mouseY, button, shift(), slotAt(mouseX, mouseY));
         } else {
             FocusInput.get().mouseMoved(mouseX, mouseY, slotAt(mouseX, mouseY));
