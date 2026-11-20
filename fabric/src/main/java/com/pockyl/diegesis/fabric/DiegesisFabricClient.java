@@ -30,6 +30,9 @@ public final class DiegesisFabricClient implements ClientModInitializer {
     public void onInitializeClient() {
         DiegesisClientRuntime.init();
         FabricNetwork.registerClient();
+        if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("controlify")) {
+            com.pockyl.diegesis.fabric.compat.ControlifyCompat.init();
+        }
         ClientTickEvents.END_CLIENT_TICK.register(client -> DiegesisClientRuntime.tick());
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, context) -> dispatcher.register(
                 ClientCommands.literal("diegesis").then(ClientCommands.literal("debug").executes(command -> {

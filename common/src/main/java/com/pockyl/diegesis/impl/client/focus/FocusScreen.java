@@ -152,7 +152,7 @@ public final class FocusScreen extends Screen {
     }
 
     /** Whether the inventory slot is on show now: a stack got there can fly into it. */
-    static boolean isSlotShown(int slot) {
+    public static boolean isSlotShown(int slot) {
         if (keepsHotbar()) {
             return slotCenter(slot)[0] != OFF_SCREEN;
         }
