@@ -199,6 +199,8 @@ public final class SceneRenderer {
 
     private static void renderStations(PoseStack poseStack, Matrix4f modelView, Matrix4f projection, Camera camera) {
         PENDING_COUNTS.clear();
+        PENDING_OUTLINES.clear();
+        PENDING_SEEN_OUTLINES.clear();
         Projector.capture(projection, new Matrix4f(modelView).mul(poseStack.last().pose()), camera.position());
         TO_WORLD.set(poseStack.last().pose()).invert();
         SmoothPass.begin(projection, modelView);
@@ -254,9 +256,41 @@ public final class SceneRenderer {
         sceneBuffers.endBatch(ITEMS);
         clearBuffers.endBatch();
         sceneBuffers.endBatch();
-        PENDING_OUTLINES.clear();
-        PENDING_SEEN_OUTLINES.clear();
         flushCounts();
+    }
+
+    public static void renderOutlines() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) {
+            return;
+        }
+        LevelRenderState state = mc.gameRenderer.gameRenderState().levelRenderState;
+        renderOutlines(state, mc.levelRenderer != null ? SceneRenderer.currentCollector() instanceof SubmitNodeStorage s ? s : null : null);
+    }
+
+    public static void renderOutlines(LevelRenderState state, SubmitNodeStorage storage) {
+        if (storage == null || (PENDING_OUTLINES.isEmpty() && PENDING_SEEN_OUTLINES.isEmpty())) {
+            return;
+        }
+        try {
+            state.shouldShowEntityOutlines = true;
+            DiegesisBuffers.BufferSource outlineBuffers = new DiegesisBuffers.BufferSource(storage);
+            int argb = (0xFF << 24) | (outlineColor & 0xFFFFFF);
+            DiegesisBuffers outlineSource = type -> {
+                RenderType outlineType = RenderTypes.outline(isItemSheet(type) ? TextureAtlas.LOCATION_ITEMS : TextureAtlas.LOCATION_BLOCKS);
+                return new TintedConsumer(outlineBuffers.getBuffer(outlineType), argb);
+            };
+            for (Consumer<DiegesisBuffers> draw : PENDING_OUTLINES) {
+                draw.accept(outlineSource);
+            }
+            for (Consumer<DiegesisBuffers> draw : PENDING_SEEN_OUTLINES) {
+                draw.accept(outlineSource);
+            }
+            outlineBuffers.endBatch();
+        } finally {
+            PENDING_OUTLINES.clear();
+            PENDING_SEEN_OUTLINES.clear();
+        }
     }
 
     public static void renderCounts() {

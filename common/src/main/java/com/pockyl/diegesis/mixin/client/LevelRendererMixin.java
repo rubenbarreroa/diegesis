@@ -31,5 +31,6 @@ abstract class LevelRendererMixin {
     @Inject(method = "submitFeatures", at = @At("TAIL"))
     private void diegesis$appendScene(LevelRenderState state, SubmitNodeCollector collector, boolean outline, CallbackInfo ci) {
         SceneRenderer.append(state, submitNodeStorage);
+        SceneRenderer.renderOutlines(state, submitNodeStorage);
     }
 }

@@ -113,7 +113,7 @@ public final class FocusScreen extends Screen {
     }
 
     /** Whether an overlay has the mouse. */
-    static boolean isCovered() {
+    public static boolean isCovered() {
         return overlay != null;
     }
 
